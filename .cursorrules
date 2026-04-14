@@ -1,0 +1,32 @@
+## Project Context
+
+- This repository defines and evolves the **Write Up** concept: a long-term AI writing mentor for students and aspiring writers.
+- Primary docs live in `docs/`. Treat these as the source of truth for product intent and team framing.
+- See `product-vision.md` for the full product vision and HMW statement context.
+- See `docs/problem-framing-canvas.md` for constraints, affected user groups, and equity-centered framing.
+
+## Product Goals To Preserve
+
+- Prioritize **learning and mastery over instant correction**.
+- Focus on identifying recurring patterns across writing (syntax, tone, vocabulary), not only one-off fixes.
+- Preserve user voice and dialect; avoid suggestions that homogenize writing style.
+- Prefer "teach me why" and guided practice loops over "rewrite this for me" behavior.
+- Keep multilingual, dyslexic, and dialect-diverse users in scope when proposing features or copy.
+
+## Conventions For This Repo
+
+- Keep files and folders lowercase with hyphen-separated names (e.g., `problem-framing-canvas.md`).
+- Use Markdown for project artifacts; keep headings concise and progressively structured (`#`, `##`, `###`).
+- Write in plain language; define jargon on first use.
+- When adding or updating strategy docs, link to existing docs instead of duplicating large source text.
+- Keep changes focused and incremental; preserve existing intent and terminology unless explicitly revised.
+
+## AI Collaboration Guidelines
+
+- Before proposing implementation details, anchor recommendations to product goals and constraints above.
+- When suggesting UI/feature ideas, include:
+  - the user learning outcome,
+  - how voice preservation is protected,
+  - and how the idea avoids becoming a pure auto-rewriter.
+- If requirements are ambiguous, ask clarifying questions instead of filling gaps with generic assumptions.
+- Prefer concrete, actionable outputs (checklists, structured sections, draft language) over vague summaries.
