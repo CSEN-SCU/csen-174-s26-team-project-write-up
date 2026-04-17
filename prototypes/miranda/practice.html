@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Timed writing — prototype</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Fraunces:ital,opsz,wght@0,9..144,500..700;1,9..144,500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="page-header">
+        <h1>Timed writing</h1>
+        <span id="timer" class="timer-pill timer-pill--idle" role="timer">15:00</span>
+      </header>
+
+      <p id="session-status" class="session-status">Read the prompt, then press Ready to reveal the editor and start the clock.</p>
+
+      <section class="write-card prompt-card" aria-labelledby="prompt-heading">
+        <h2 id="prompt-heading" class="prompt-heading">Your prompt</h2>
+        <p id="prompt-text" class="prompt-text"></p>
+        <div class="prompt-actions">
+          <button type="button" class="btn" id="ready-btn">Ready</button>
+        </div>
+      </section>
+
+      <section id="write-region" class="write-card write-area" hidden aria-labelledby="write-heading">
+        <h2 id="write-heading" class="visually-hidden">Your draft</h2>
+        <label for="draft">Your response</label>
+        <textarea id="draft" name="draft" spellcheck="true" disabled rows="14"></textarea>
+        <div class="write-actions">
+          <button type="button" class="btn-outline" id="submit-btn" disabled>Submit</button>
+        </div>
+        <p class="hint">
+          When you submit or when time runs out, your prompt and draft are saved in this browser
+          tab (<code>sessionStorage</code>) and you move to the feedback page. There, your draft
+          is also sent to the <strong>LanguageTool</strong> public API for grammar and spelling
+          suggestions (see the privacy note on that page).
+        </p>
+      </section>
+
+      <div class="actions" style="margin-top: 2rem">
+        <a class="btn-secondary" href="index.html">← What this prototype is for</a>
+      </div>
+    </main>
+    <script src="practice.js" defer></script>
+  </body>
+</html>
