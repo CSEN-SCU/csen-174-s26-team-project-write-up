@@ -3,3 +3,9 @@
 **/.env
 *.env
 **/*.env
+
+# Local prototype data (user writing profiles, etc.)
+prototypes/chris/server/data/
+
+# Dependencies
+**/node_modules/
