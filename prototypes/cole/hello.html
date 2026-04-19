@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hello Extensions</title>
+    <style>
+      :root {
+        --bg: #0f1218;
+        --panel: #181c26;
+        --text: #e8eaef;
+        --muted: #8b93a7;
+        --accent: #f4a261;
+        --border: #2a3142;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        max-width: 420px;
+        padding: 14px;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: radial-gradient(120% 80% at 10% 0%, #1a2230 0%, var(--bg) 55%);
+        color: var(--text);
+      }
+
+      h1 {
+        margin: 0 0 10px;
+        font-size: 1.05rem;
+        font-weight: 650;
+        letter-spacing: 0.02em;
+      }
+
+      label {
+        display: block;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 72px;
+        resize: vertical;
+        padding: 10px 11px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--panel);
+        color: var(--text);
+        font-size: 0.9rem;
+        line-height: 1.45;
+      }
+
+      textarea:focus {
+        outline: 2px solid rgba(244, 162, 97, 0.35);
+        outline-offset: 1px;
+      }
+
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin: 10px 0 12px;
+      }
+
+      button {
+        flex: 0 0 auto;
+        padding: 8px 14px;
+        border: none;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #f4a261, #e76f51);
+        color: #141820;
+        font-weight: 650;
+        font-size: 0.85rem;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        opacity: 0.55;
+        cursor: wait;
+      }
+
+      .thumb {
+        margin-top: 4px;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+      }
+
+      .thumb img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .out-label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+        margin: 4px 0 6px;
+      }
+
+      #output {
+        min-height: 96px;
+        padding: 10px 11px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: #12151c;
+        color: var(--text);
+        font-size: 0.86rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Prompt → Gemini</h1>
+    <label for="prompt">Your prompt</label>
+    <textarea
+      id="prompt"
+      placeholder="Ask anything…"
+      spellcheck="true"
+    ></textarea>
+    <div class="row">
+      <button type="button" id="send">Generate</button>
+    </div>
+    <div class="thumb">
+      <img src="mango.png" alt="" />
+    </div>
+    <p class="out-label">Response</p>
+    <div id="output"></div>
+    <script src="hello.js"></script>
+  </body>
+</html>
