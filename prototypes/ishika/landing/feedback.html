@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Write Up — AI feedback (prototype)</title>
+  <meta name="description" content="Paste your writing and get learning-first feedback from the Groq-powered prototype." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,200..800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="wrap feedback-page">
+    <header class="site">
+      <a class="brand" href="/">
+        <span class="brand-icon" aria-hidden="true"></span>
+        <span class="brand-text">
+          <span class="brand-name">Write Up</span>
+          <span class="brand-tag">AI feedback · prototype</span>
+        </span>
+      </a>
+      <nav class="top" aria-label="Primary">
+        <a href="/">Landing</a>
+        <a href="/#try">Try it</a>
+      </nav>
+    </header>
+
+    <main>
+      <p class="eyebrow reveal">Prototype</p>
+      <h1 class="feedback-title reveal d1">Feedback on your draft</h1>
+      <p class="section-lede feedback-lede reveal d2">
+        Paste something <strong>you</strong> wrote. The server calls Groq (<strong>Llama 3.3 70B</strong>) and returns suggestions—teaching-focused, not a full rewrite.
+        Open this page via <code>http://127.0.0.1:5050/feedback.html</code> after starting the Python server (see <code>prototypes/ishika/server/app.py</code>).
+      </p>
+
+      <p class="file-protocol-banner" role="alert">
+        You opened this file from disk (<code>file://</code>). Run <code>python app.py</code> in <code>prototypes/ishika/server</code>, then use <strong>http://127.0.0.1:5050/feedback.html</strong> so the form can reach the API.
+      </p>
+
+      <div class="feedback-toolbar reveal d2">
+        <button class="btn" type="button" id="submit-btn">Get feedback</button>
+        <span class="form-hint status-inline" id="status-line"></span>
+      </div>
+
+      <div class="feedback-layout reveal d3">
+        <div class="feedback-field">
+          <label for="draft">Your text</label>
+          <textarea id="draft" class="ai-textarea" placeholder="Paste a paragraph or two from an essay, email, or application draft…" spellcheck="true"></textarea>
+          <div class="focus-row" role="group" aria-labelledby="focus-legend">
+            <span id="focus-legend" class="visually-hidden">Focus areas</span>
+            <label><input type="checkbox" name="focus" value="vocabulary" checked /> Vocabulary</label>
+            <label><input type="checkbox" name="focus" value="tone" checked /> Tone</label>
+            <label><input type="checkbox" name="focus" value="clarity" /> Clarity</label>
+          </div>
+        </div>
+        <div class="output-panel">
+          <h2>Model output</h2>
+          <p class="output-meta" id="output-meta"></p>
+          <pre class="output-body" id="output-body">Feedback will appear here.</pre>
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      <span>Write Up · prototype</span>
+      <span><a href="/">← Back to landing</a></span>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      if (location.protocol === "file:") {
+        document.body.classList.add("is-file-protocol");
+      }
+    })();
+
+    const btn = document.getElementById("submit-btn");
+    const draft = document.getElementById("draft");
+    const out = document.getElementById("output-body");
+    const meta = document.getElementById("output-meta");
+    const status = document.getElementById("status-line");
+
+    function selectedFocus() {
+      return Array.from(document.querySelectorAll('input[name="focus"]:checked')).map((el) => el.value);
+    }
+
+    async function runFeedback() {
+      const text = draft.value.trim();
+      if (!text) {
+        status.textContent = "Add some text first.";
+        return;
+      }
+      const focus = selectedFocus();
+      if (focus.length === 0) {
+        status.textContent = "Pick at least one focus: vocabulary, tone, or clarity.";
+        return;
+      }
+      if (location.protocol === "file:") {
+        status.textContent = "Open this page through the local server (see banner above).";
+        return;
+      }
+
+      btn.disabled = true;
+      status.textContent = "Calling Groq…";
+      out.textContent = "";
+      meta.textContent = "";
+
+      try {
+        const res = await fetch("/api/feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, focus }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          out.textContent = "";
+          out.classList.add("output-error");
+          out.textContent = data.error || "Request failed.";
+          meta.textContent = "";
+          status.textContent = "Error";
+          return;
+        }
+        out.classList.remove("output-error");
+        out.textContent = data.feedback || "";
+        const parts = [];
+        if (data.model) parts.push("Model: " + data.model);
+        if (typeof data.vocabulary_pairs_saved === "number" && data.vocabulary_pairs_saved > 0) {
+          parts.push("Saved " + data.vocabulary_pairs_saved + " vocab pair(s) to local DB");
+        }
+        meta.textContent = parts.join(" · ");
+        status.textContent = "Done";
+      } catch (e) {
+        out.classList.add("output-error");
+        out.textContent = String(e.message || e);
+        meta.textContent = "";
+        status.textContent = "Network error";
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    btn.addEventListener("click", runFeedback);
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            e.target.classList.add("in");
+            io.unobserve(e.target);
+          }
+        }
+      },
+      { threshold: 0.08, rootMargin: "0px 0px -6% 0px" }
+    );
+    document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+  </script>
+</body>
+</html>
