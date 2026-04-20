@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Write Up — A writing companion for your own drafts</title>
+  <meta name="description" content="Write Up is a Chrome extension that helps students and writers improve vocabulary and tone on text they wrote—with explanations, not ghostwritten essays." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,200..800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="ribbon" aria-hidden="true"></div>
+
+    <header class="site">
+      <a class="brand" href="#top" id="top">
+        <span class="brand-icon" aria-hidden="true"></span>
+        <span class="brand-text">
+          <span class="brand-name">Write Up</span>
+          <span class="brand-tag">Chrome extension · prototype</span>
+        </span>
+      </a>
+      <nav class="top" aria-label="Primary">
+        <a href="#what">What it is</a>
+        <a href="#who">Who it’s for</a>
+        <a href="#problem">Problem</a>
+        <a href="#how">How to use</a>
+        <a href="#try">Try it</a>
+        <a class="btn ghost" href="#waitlist">Waitlist</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-heading">
+        <div class="hero-copy">
+          <p class="eyebrow reveal">Write Up</p>
+          <h1 id="hero-heading" class="reveal d1">
+            Feedback on <span class="hl">your</span> words—not a replacement essay.
+          </h1>
+          <p class="lede reveal d2">
+            <strong>Write Up</strong> is a Chrome extension for people who want clearer, more confident writing in school and at work. You choose what to work on (like vocabulary or tone), paste text <em>you</em> wrote, and get targeted suggestions and short explanations—plus a place to save phrases you want to reuse.
+          </p>
+          <div class="hero-cta reveal d3">
+            <a class="btn" href="#try">How to try it</a>
+            <a class="btn ghost" href="#how">Steps in the app</a>
+          </div>
+          <p class="fineprint reveal d4">
+            This landing page is the intro: in a gallery walk, read the sections below first—then open the extension from Chrome when you’re ready to run through a real draft.
+          </p>
+        </div>
+
+        <div class="hero-aside">
+          <p class="float-note">You draft first. Write Up highlights where to tighten language—on your sentences.</p>
+          <div class="draft-card reveal d2">
+            <div class="inner">
+              <div class="chrome-bar">
+                <span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                <span>Write Up · review</span>
+              </div>
+              <div class="ui-row">
+                <span>Your text</span>
+                <div class="pill-group" aria-label="Improvement goals">
+                  <span class="pill on">Vocabulary</span>
+                  <span class="pill on">Tone</span>
+                  <span class="pill">Clarity</span>
+                </div>
+              </div>
+              <div class="line">
+                …I want to show I can contribute to research teams and learn quickly in a graduate program…
+              </div>
+              <div class="line mark">
+                …I want to demonstrate I can contribute to research teams and ramp up effectively in a graduate program…
+                <div class="mini">Example: stronger verbs and a more natural professional register—still your meaning.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="what" aria-labelledby="what-heading">
+        <h2 id="what-heading" class="reveal">What Write Up is</h2>
+        <p class="section-lede reveal d1">
+          A <strong>browser extension</strong> that acts as a lightweight writing coach: it works on <strong>text you supply</strong>, surfaces places to improve (especially vocabulary and tone), explains <em>why</em> a change might help, and can remember phrases you want to keep practicing. It is <strong>not</strong> meant to generate whole assignments or emails for you.
+        </p>
+      </section>
+
+      <section id="who" aria-labelledby="who-heading">
+        <h2 id="who-heading" class="reveal">Who it’s for</h2>
+        <p class="section-lede reveal d1">
+          <strong>Students</strong> (high school through college) and <strong>early-career professionals</strong> who write in English for classes, applications, lab reports, or workplace email—and want to sound clearer and more polished <strong>without</strong> losing their own voice. Also useful for anyone who feels stuck looking up synonyms mid-draft.
+        </p>
+        <div class="split">
+          <div class="callout reveal d2">
+            <strong>Good fit if:</strong> you already write your own drafts and want structured feedback and vocabulary you can revisit.
+          </div>
+          <div class="callout reveal d3">
+            <strong>Not the goal if:</strong> you want one click to produce a finished essay or message with no authorial effort—use a different tool; Write Up is built for <strong>learning</strong>.
+            <span class="stamp">Not a ghostwriter</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="problem" aria-labelledby="problem-heading">
+        <h2 id="problem-heading" class="reveal">What problem it solves</h2>
+        <p class="section-lede reveal d1">
+          Many writers know their output “isn’t quite there” but don’t have a clear picture of <strong>recurring gaps</strong>—word choice, tone, or phrasing—across real work. Spell-checkers and grammar tools often fix the <em>current</em> line without building skill; full-draft AI can erase authenticity. Write Up focuses on <strong>your draft</strong>, your chosen goals, and <strong>repeatable improvement</strong> you can take to the next document.
+        </p>
+      </section>
+
+      <section id="how" aria-labelledby="how-heading">
+        <h2 id="how-heading" class="reveal">How to use Write Up (in the app)</h2>
+        <p class="section-lede reveal d1">
+          Once the extension is installed, someone with <strong>zero prior context</strong> can follow these steps inside Write Up:
+        </p>
+        <div class="grid-3">
+          <article class="card reveal d1">
+            <p class="step">01</p>
+            <h3>Set your focus</h3>
+            <p>When you start (or in settings), pick what you want to improve first—e.g. <strong>vocabulary</strong>, <strong>tone</strong>, or <strong>clarity</strong>—so suggestions match your goal.</p>
+          </article>
+          <article class="card reveal d2">
+            <p class="step">02</p>
+            <h3>Paste your own draft</h3>
+            <p>Copy a paragraph or full message <strong>you wrote</strong> into Write Up. The extension responds to <em>your</em> text, not a blank “write me an essay” prompt.</p>
+          </article>
+          <article class="card reveal d3">
+            <p class="step">03</p>
+            <h3>Review and apply</h3>
+            <p>Read highlighted spots, optional rephrasings, and short rationales. Accept or adapt changes in your real document (Google Doc, email, etc.).</p>
+          </article>
+        </div>
+        <div class="card try-card reveal">
+          <p class="step">04</p>
+          <h3>Save vocabulary (optional)</h3>
+          <p>Store words and phrases you want to reuse or drill later, so improvement carries across drafts.</p>
+        </div>
+      </section>
+
+      <section id="try" aria-labelledby="try-heading">
+        <h2 id="try-heading" class="reveal">Try it at the gallery (this laptop)</h2>
+        <p class="section-lede reveal d1">
+          If you’re approaching this computer with <strong>no context</strong>: read the sections above, then use Chrome to exercise the prototype the same way a user would.
+          With the Write Up extension installed, <strong>opening this section</strong> (URL ends with <code>#try</code>) asks Chrome to <strong>open the Write Up side panel</strong> automatically—use the nav link “Try it” or any “How to try it” button above.
+        </p>
+        <ol class="try-steps reveal d2">
+          <li><strong>Start the API</strong>: <code>python app.py</code> in <code>prototypes/ishika/server</code> (defaults to <code>http://127.0.0.1:5050</code>).</li>
+          <li><strong>Load the extension</strong>: Chrome → <code>chrome://extensions</code> → turn on <strong>Developer mode</strong> → <strong>Load unpacked</strong> → choose <code>prototypes/ishika/extension</code>.</li>
+          <li><strong>Pin Write Up</strong> (puzzle icon → pin), then <strong>click the Write Up toolbar icon</strong> to open the <strong>side panel</strong> (like Grammarly’s docked panel).</li>
+          <li><strong>Paste text</strong> in the side panel, choose focus (vocabulary / tone / clarity), and click <strong>Get feedback</strong>.</li>
+          <li>Optional: use the full <strong>web feedback</strong> page for a larger layout (button below).</li>
+        </ol>
+        <p class="form-hint reveal d3">Side panel needs <strong>Chrome 116+</strong>. If you change the server port, update <code>host_permissions</code> in <code>extension/manifest.json</code> and the saved API URL in the panel.</p>
+        <div class="try-cta-row reveal d4">
+          <a class="btn" href="/feedback.html">Open full AI feedback page</a>
+          <a class="btn ghost" href="#chrome-extension">Extension folder path</a>
+        </div>
+        <p class="form-hint try-cta-hint reveal d4" id="chrome-extension">
+          Extension root: <code>prototypes/ishika/extension</code> — same Groq feedback as the web page, compressed for the side panel.
+        </p>
+      </section>
+
+      <section id="principles" aria-labelledby="principles-heading">
+        <h2 id="principles-heading" class="reveal">Product guardrails</h2>
+        <p class="section-lede reveal d1">
+          Write Up is designed to <strong>teach and sharpen</strong>, not to homogenize voice: feedback should support clarity and professionalism while respecting how you sound—including dialect and personal style where appropriate.
+        </p>
+      </section>
+
+      <section id="waitlist" aria-labelledby="waitlist-heading">
+        <h2 id="waitlist-heading" class="reveal">Stay in the loop</h2>
+        <p class="section-lede reveal d1">
+          Optional waitlist for updates. Submit is not connected until you add a backend or form service.
+        </p>
+        <form class="reveal d2" action="#" method="post" aria-label="Waitlist signup">
+          <label for="email" class="visually-hidden">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email" placeholder="you@school.edu" required />
+          <button class="btn" type="submit">Notify me</button>
+        </form>
+        <p class="form-hint reveal d3">Connect to Buttondown, Loops, or your API when ready.</p>
+      </section>
+    </main>
+
+    <footer>
+      <span>Write Up · prototype · <span id="y"></span></span>
+      <span>Intro: <code>prototypes/ishika/landing/index.html</code></span>
+    </footer>
+  </div>
+
+  <script>
+    document.getElementById("y").textContent = new Date().getFullYear();
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            e.target.classList.add("in");
+            io.unobserve(e.target);
+          }
+        }
+      },
+      { threshold: 0.1, rootMargin: "0px 0px -6% 0px" }
+    );
+    document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+
+    document.querySelector("#waitlist form").addEventListener("submit", (ev) => {
+      ev.preventDefault();
+      alert("Waitlist is not wired yet — hook up your backend or form service next.");
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Write Up</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <div class="root">
+    <header class="sp-header">
+      <div class="sp-header-text">
+        <strong>Write Up</strong>
+        <span class="sp-sub">Side panel · prototype</span>
+      </div>
+      <a
+        id="home-link"
+        class="home-btn"
+        href="http://127.0.0.1:5050/"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Open Write Up landing page"
+        aria-label="Open landing page (home)"
+      >
+        <svg class="home-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path
+            fill="currentColor"
+            d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"
+          />
+        </svg>
+      </a>
+    </header>
+
+    <div class="tabbar" role="tablist" aria-label="Write Up sidebar views">
+      <button type="button" class="tab is-active" id="tab-feedback" role="tab" aria-selected="true" aria-controls="panel-feedback">
+        Feedback
+      </button>
+      <button type="button" class="tab" id="tab-wordbank" role="tab" aria-selected="false" aria-controls="panel-wordbank">
+        Word Bank
+      </button>
+    </div>
+
+    <section class="tab-panel is-active" id="panel-feedback" role="tabpanel" aria-labelledby="tab-feedback">
+      <div>
+        <label class="sp-label" for="draft">Your text</label>
+        <textarea id="draft" placeholder="Paste a paragraph from this page or your draft…" spellcheck="true"></textarea>
+      </div>
+
+      <div class="focus-row" role="group" aria-labelledby="focus-legend">
+        <span id="focus-legend" class="visually-hidden">Focus</span>
+        <label><input type="checkbox" name="focus" value="vocabulary" checked /> Vocabulary</label>
+        <label><input type="checkbox" name="focus" value="tone" checked /> Tone</label>
+        <label><input type="checkbox" name="focus" value="clarity" /> Clarity</label>
+      </div>
+
+      <button type="button" class="btn-primary" id="submit-btn">Get feedback</button>
+      <p class="status" id="status-line" aria-live="polite"></p>
+
+      <div class="out-wrap">
+        <div class="out-head">Feedback</div>
+        <p class="out-meta" id="output-meta"></p>
+        <pre id="output">Feedback will appear here.</pre>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="panel-wordbank" role="tabpanel" aria-labelledby="tab-wordbank" hidden>
+      <section class="wordbank" aria-label="Suggested words from earlier feedback">
+        <div class="wordbank-head">
+          <span>Suggested words you can use today</span>
+        </div>
+        <div id="wordbank-list" class="wordbank-list">
+          <p class="wordbank-empty">No saved words yet.</p>
+        </div>
+      </section>
+    </section>
+  </div>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
