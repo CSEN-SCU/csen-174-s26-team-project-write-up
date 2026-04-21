@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Feedback — prototype</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Fraunces:ital,opsz,wght@0,9..144,500..700;1,9..144,500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="page-header">
+        <h1>Feedback</h1>
+      </header>
+
+      <p class="prototype-banner" role="note">
+        Prototype only: this page runs simple local checks (length, paragraphs, sentence size),
+        then calls the <strong>LanguageTool</strong> public proofreading API for grammar and
+        spelling hints. That request sends your draft to LanguageTool’s servers—see their
+        <a href="https://languagetool.org/legal/privacy">privacy policy</a>. Suggestions are
+        hints, not grades; keep wording when your voice or domain terms are intentional.
+      </p>
+
+      <section id="empty-state" class="write-card">
+        <h2 class="prompt-heading">No draft loaded</h2>
+        <p class="prompt-text">
+          Start from the practice page so your prompt and text can be carried over in this
+          browser tab. Nothing is uploaded; data lives in <code>sessionStorage</code> until you
+          start a new session or clear site data.
+        </p>
+        <div class="prompt-actions">
+          <a class="btn" href="practice.html">Go to practice</a>
+          <a class="btn-secondary" href="index.html">← Overview</a>
+        </div>
+      </section>
+
+      <div id="main-content" hidden>
+        <p id="session-summary" class="session-status"></p>
+
+        <section class="write-card" aria-labelledby="prompt-label-fb">
+          <h2 id="prompt-label-fb" class="prompt-heading">The prompt you had</h2>
+          <p id="prompt-display" class="prompt-text"></p>
+        </section>
+
+        <section class="panel" aria-labelledby="stats-heading">
+          <h2 id="stats-heading">Quick snapshot</h2>
+          <dl class="stat-grid">
+            <div class="stat-cell">
+              <dt>Words</dt>
+              <dd id="stat-words">—</dd>
+            </div>
+            <div class="stat-cell">
+              <dt>Paragraphs</dt>
+              <dd id="stat-paragraphs">—</dd>
+            </div>
+            <div class="stat-cell">
+              <dt>Sentences (rough)</dt>
+              <dd id="stat-sentences">—</dd>
+            </div>
+            <div class="stat-cell">
+              <dt>Reading time</dt>
+              <dd id="stat-reading">—</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section id="lt-panel" class="panel lt-panel" aria-labelledby="lt-heading" hidden>
+          <h2 id="lt-heading">Grammar & spelling (LanguageTool)</h2>
+          <p id="lt-truncation-note" class="hint lt-truncation-note" hidden></p>
+          <p id="lt-status" class="lt-status" role="status" aria-live="polite"></p>
+          <ul id="lt-matches" class="feedback-list lt-match-list"></ul>
+          <p class="lt-voice-note">
+            Automated checkers can be wrong on names, dialect, and technical jargon. Use
+            suggestions to learn patterns—not to erase your own style.
+          </p>
+          <p class="lt-attribution">
+            Proofreading powered by
+            <a href="https://languagetool.org/">LanguageTool</a>
+            (public API; optional Premium credentials in <code>languagetool-config.js</code>).
+          </p>
+        </section>
+
+        <section class="panel" aria-labelledby="obs-heading">
+          <h2 id="obs-heading">Observations</h2>
+          <ul id="observations-list" class="feedback-list"></ul>
+        </section>
+
+        <section class="panel" aria-labelledby="reflect-heading">
+          <h2 id="reflect-heading">Questions to ask yourself next</h2>
+          <ul class="feedback-list">
+            <li>Did you name the audience and what you wanted them to do after reading?</li>
+            <li>Where is the clearest “because → therefore” chain in your argument?</li>
+            <li>What tradeoff did you hide or rush past that a skeptical reader would ask about?</li>
+            <li>If you had two more minutes, which paragraph would you deepen first—and why?</li>
+          </ul>
+        </section>
+
+        <section class="write-card" aria-labelledby="draft-heading">
+          <h2 id="draft-heading" class="prompt-heading">Your draft</h2>
+          <div id="draft-block"></div>
+        </section>
+
+        <div class="actions" style="margin-top: 2rem">
+          <a class="btn" href="practice.html">Try another round</a>
+          <a class="btn-secondary" href="index.html">← Overview</a>
+        </div>
+      </div>
+    </main>
+    <script src="languagetool-config.js" defer></script>
+    <script src="feedback.js" defer></script>
+  </body>
+</html>
