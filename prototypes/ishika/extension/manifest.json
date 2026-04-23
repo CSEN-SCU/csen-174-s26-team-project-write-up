@@ -7,7 +7,8 @@
   "permissions": ["sidePanel", "storage"],
   "host_permissions": [
     "http://127.0.0.1:5050/*",
-    "http://localhost:5050/*"
+    "http://localhost:5050/*",
+    "https://docs.google.com/*"
   ],
   "action": {
     "default_title": "Open Write Up side panel"
@@ -19,6 +20,11 @@
     {
       "matches": ["http://127.0.0.1:5050/*", "http://localhost:5050/*"],
       "js": ["content-landing.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://docs.google.com/document/*"],
+      "js": ["content-docs-live.js"],
       "run_at": "document_idle"
     }
   ],
