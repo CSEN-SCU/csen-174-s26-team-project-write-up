@@ -12,25 +12,76 @@ const tabFeedback = document.getElementById("tab-feedback");
 const tabWordBank = document.getElementById("tab-wordbank");
 const panelFeedback = document.getElementById("panel-feedback");
 const panelWordBank = document.getElementById("panel-wordbank");
+const docsLiveEnabled = document.getElementById("docs-live-enabled");
+const docsLiveUseMcp = document.getElementById("docs-live-use-mcp");
+const docsLiveStatus = document.getElementById("docs-live-status");
+const docsLiveOutput = document.getElementById("docs-live-output");
 
 function getApiBase() {
   return DEFAULT_API_BASE;
 }
 
-/** Landing page is served at the Flask app root (same origin as the API). */
 function landingPageUrl(apiBase) {
   const base = (apiBase || DEFAULT_API_BASE).trim().replace(/\/$/, "");
   return `${base || DEFAULT_API_BASE}/`;
 }
 
 function syncHomeLinkHref(apiBase) {
-  if (homeLink) {
-    homeLink.href = landingPageUrl(apiBase);
-  }
+  if (homeLink) homeLink.href = landingPageUrl(apiBase);
 }
 
 function selectedFocus() {
   return Array.from(document.querySelectorAll('input[name="focus"]:checked')).map((el) => el.value);
+}
+
+function persistLiveSettings() {
+  if (!chrome?.storage?.local) return;
+  chrome.storage.local.set({
+    docsLiveEnabled: !!docsLiveEnabled?.checked,
+    docsLiveUseMcp: !!docsLiveUseMcp?.checked,
+    docsLiveFocus: selectedFocus(),
+  });
+}
+
+function hydrateLiveSettings() {
+  if (!chrome?.storage?.local) return;
+  chrome.storage.local.get(
+    {
+      docsLiveEnabled: false,
+      docsLiveUseMcp: false,
+      docsLiveFocus: ["vocabulary", "tone"],
+      liveDocsStatus: "",
+      liveDocsFeedback: "",
+      liveDocsUpdatedAt: 0,
+    },
+    (state) => {
+      if (docsLiveEnabled) docsLiveEnabled.checked = !!state.docsLiveEnabled;
+      if (docsLiveUseMcp) docsLiveUseMcp.checked = !!state.docsLiveUseMcp;
+      if (Array.isArray(state.docsLiveFocus)) {
+        document.querySelectorAll('input[name="focus"]').forEach((el) => {
+          el.checked = state.docsLiveFocus.includes(el.value);
+        });
+      }
+      renderLiveStatus(state.liveDocsStatus, state.liveDocsUpdatedAt);
+      if (docsLiveOutput && state.liveDocsFeedback) {
+        docsLiveOutput.textContent = state.liveDocsFeedback;
+      }
+    }
+  );
+}
+
+function renderLiveStatus(statusText, updatedAt) {
+  if (!docsLiveStatus) return;
+  const bits = [];
+  if (statusText) bits.push(statusText);
+  if (updatedAt) {
+    try {
+      bits.push(new Date(updatedAt).toLocaleTimeString());
+    } catch (_) {
+      // no-op
+    }
+  }
+  docsLiveStatus.textContent = bits.join(" · ");
 }
 
 function pickRandomPairs(items, count) {
@@ -62,12 +113,7 @@ function renderWordBank(items) {
     .map((pair) => {
       const safeFrom = pair.from.replace(/</g, "&lt;");
       const safeTo = pair.to.replace(/</g, "&lt;");
-      return `
-        <div class="wordbank-item">
-          <div class="wordbank-old">${safeFrom}</div>
-          <div class="wordbank-new">${safeTo}</div>
-        </div>
-      `;
+      return `<div class="wordbank-item"><div class="wordbank-old">${safeFrom}</div><div class="wordbank-new">${safeTo}</div></div>`;
     })
     .join("");
   wordBankList.innerHTML = html || '<p class="wordbank-empty">No saved words yet.</p>';
@@ -78,10 +124,7 @@ async function loadWordBank() {
   try {
     const res = await fetch(`${base}/api/word-bank?limit=30`);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      renderWordBank([]);
-      return;
-    }
+    if (!res.ok) return renderWordBank([]);
     renderWordBank(Array.isArray(data.items) ? data.items : []);
   } catch (_) {
     renderWordBank([]);
@@ -90,10 +133,7 @@ async function loadWordBank() {
 
 async function runFeedback() {
   const text = draft.value.trim();
-  if (!text) {
-    statusLine.textContent = "Add some text first.";
-    return;
-  }
+  if (!text) return (statusLine.textContent = "Add some text first.");
   const focus = selectedFocus();
   if (focus.length === 0) {
     statusLine.textContent = "Pick at least one focus: vocabulary, tone, or clarity.";
@@ -117,16 +157,14 @@ async function runFeedback() {
     if (!res.ok) {
       output.classList.add("is-error");
       output.textContent = data.error || `Request failed (${res.status}).`;
-      outputMeta.textContent = "";
       statusLine.textContent = "Error";
       return;
     }
-    output.classList.remove("is-error");
     output.textContent = data.feedback || "";
     const metaParts = [];
     if (data.model) metaParts.push(`Model: ${data.model}`);
     if (typeof data.vocabulary_pairs_saved === "number" && data.vocabulary_pairs_saved > 0) {
-      metaParts.push(`Saved ${data.vocabulary_pairs_saved} vocab pair(s) to local DB`);
+      metaParts.push(`Saved ${data.vocabulary_pairs_saved} vocab pair(s)`);
     }
     outputMeta.textContent = metaParts.join(" · ");
     statusLine.textContent = "Done";
@@ -136,7 +174,6 @@ async function runFeedback() {
     output.textContent =
       (e && e.message) ||
       "Could not reach local API at http://127.0.0.1:5050. Start `python app.py` in prototypes/ishika/server.";
-    outputMeta.textContent = "";
     statusLine.textContent = "Network error";
   } finally {
     submitBtn.disabled = false;
@@ -149,7 +186,6 @@ function setActiveTab(tabName) {
   tabWordBank.classList.toggle("is-active", !feedbackActive);
   tabFeedback.setAttribute("aria-selected", feedbackActive ? "true" : "false");
   tabWordBank.setAttribute("aria-selected", feedbackActive ? "false" : "true");
-
   panelFeedback.classList.toggle("is-active", feedbackActive);
   panelWordBank.classList.toggle("is-active", !feedbackActive);
   panelFeedback.hidden = !feedbackActive;
@@ -158,9 +194,9 @@ function setActiveTab(tabName) {
 
 async function init() {
   setActiveTab("feedback");
-  const base = getApiBase();
-  syncHomeLinkHref(base);
+  syncHomeLinkHref(getApiBase());
   await loadWordBank();
+  hydrateLiveSettings();
 }
 
 submitBtn.addEventListener("click", runFeedback);
@@ -169,5 +205,24 @@ tabWordBank.addEventListener("click", async () => {
   setActiveTab("wordbank");
   await loadWordBank();
 });
+document.querySelectorAll('input[name="focus"]').forEach((el) => el.addEventListener("change", persistLiveSettings));
+docsLiveEnabled?.addEventListener("change", persistLiveSettings);
+docsLiveUseMcp?.addEventListener("change", persistLiveSettings);
+
+if (chrome?.storage?.onChanged) {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local") return;
+    if (changes.liveDocsFeedback && docsLiveOutput) {
+      docsLiveOutput.textContent = changes.liveDocsFeedback.newValue || "";
+    }
+    if (changes.liveDocsStatus || changes.liveDocsUpdatedAt) {
+      const statusText = changes.liveDocsStatus?.newValue;
+      const updatedAt = changes.liveDocsUpdatedAt?.newValue;
+      chrome.storage.local.get({ liveDocsStatus: "", liveDocsUpdatedAt: 0 }, (state) => {
+        renderLiveStatus(statusText ?? state.liveDocsStatus, updatedAt ?? state.liveDocsUpdatedAt);
+      });
+    }
+  });
+}
 
 init();
