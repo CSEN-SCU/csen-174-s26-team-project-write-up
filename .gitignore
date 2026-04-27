@@ -11,3 +11,8 @@ prototypes/chris/server/data/
 **/node_modules/
 
 prototypes/ishika/.env.ishika
+# Secrets / local auth
+prototypes/cole/.env.teeheehee
+prototypes/cole/google_token.json
+prototypes/cole/client_secret_*.json
+
