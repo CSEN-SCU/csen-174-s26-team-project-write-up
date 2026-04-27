@@ -9,20 +9,28 @@ The diagrams use Mermaid C4 syntax (`C4Context`, `C4Container`) and are intentio
 ## Level 1 — System Context
 
 ```mermaid
-C4Context
-    title Write Up — System Context
+flowchart TD
+    %% Nodes
+    Writer(["<b>Writer / Student</b><br/>Writes in everyday tools and uses coaching to improve over time"])
+    WriteUp[["<b>Write Up</b><br/>Learning first writing coach - provides feedback and profile tracking"]]
 
-    Person(writer, "Writer / Student", "Writes in everyday tools and uses coaching to improve over time.")
-    System(writeup, "Write Up", "Learning-first writing coach with feedback, profile tracking, and practice support.")
+    GDocs[("<b>Google Docs</b><br/>Primary writing surface for the extension experience")]
+    GOAuth[("<b>Google OAuth</b><br/>Authorizes scoped access to Google Docs content")]
+    LLM[("<b>LLM Provider</b><br/>Generates coaching responses and adaptive practice prompts")]
 
-    System_Ext(gdocs, "Google Docs", "Primary writing surface for the extension experience.")
-    System_Ext(gauth, "Google OAuth", "Authorizes scoped access to Google Docs content.")
-    System_Ext(llm, "LLM Provider", "Generates coaching responses and adaptive practice prompts.")
+    %% Relationships
+    Writer -->|"Uses extension and webapp for feedback, profile, and practice"| WriteUp
 
-    Rel(writer, writeup, "Uses extension and web app for feedback, profile, and practice")
-    Rel(writeup, gdocs, "Reads active document text for analysis")
-    Rel(writeup, gauth, "Obtains and refreshes access tokens")
-    Rel(writeup, llm, "Sends coaching prompts and receives suggestions")
+    WriteUp -->|"Reads active document text for analysis"| GDocs
+    WriteUp -->|"Obtains and refreshes access tokens"| GOAuth
+    WriteUp -->|"Sends coaching prompts and receives suggestions"| LLM
+
+    %% Styling
+    style Writer fill:#A8ABCD,stroke:#333,stroke-width:1px,color:#fff
+    style WriteUp fill:#4A9FFF,stroke:#333,stroke-width:1px,color:#fff
+    style GDocs fill:#8F8F8F,stroke:#333,stroke-width:1px,color:#fff
+    style GOAuth fill:#8F8F8F,stroke:#333,stroke-width:1px,color:#fff
+    style LLM fill:#8F8F8F,stroke:#333,stroke-width:1px,color:#fff
 ```
 
 ---
@@ -30,42 +38,63 @@ C4Context
 ## Level 2 — Container Diagram (Option B)
 
 ```mermaid
-C4Container
-    title Write Up — Container Diagram (Option B: App API + Coaching API)
+flowchart TD
+    %% 1. PERSON (TOP)
+    Writer(["<b>Writer / Student</b><br/>(Person)<br/>Writes in everyday tools and uses coaching to improve over time"])
 
-    Person(writer, "Writer / Student", "Drafts text and reviews suggestions.")
+    %% 2. UI LAYER
+    ChromeExt[["<b>Chrome Extension</b><br/>(Chrome MV3)<br/>Provides in-context suggestions and highlights"]]
+    WebApp[["<b>Web App</b><br/>(React + Vite)<br/>Hosts onboarding and progress history"]]
 
-    System_Boundary(writeup, "Write Up") {
-        Container(extension, "Chrome Extension", "Chrome MV3 (side panel + Docs integration)", "Provides in-context suggestions, issue highlights, and dismiss actions while writing in Google Docs.")
-        Container(webapp, "Web App", "React + Vite", "Hosts onboarding, progress history, feedback review, and practice experience.")
+    %% 3. API LAYER
+    AppAPI[["<b>App API</b><br/>(Python Flask)<br/>Handles onboarding, auth, and preferences"]]
+    CoachingAPI[["<b>Coaching API</b><br/>(Node + Express)<br/>Runs RAG retrieval and coaching generation"]]
 
-        Container(appapi, "App API", "Python Flask", "Handles onboarding Q&A, auth/session integration, feedback history queries, and dismissal/preferences APIs.")
-        Container(coachapi, "Coaching API", "Node + Express", "Runs RAG retrieval, writing-level assessment (future), profile updates, and coaching generation.")
+    %% 4. DATA LAYER
+    UserDB[("<b>User Data Store</b><br/>(Firebase)<br/>Stores users and feedback history")]
+    KnowledgeBase[("<b>Coaching Knowledge Base</b><br/>(Markdown/Text)<br/>Reference material for RAG")]
 
-        ContainerDb(datastore, "User Data Store", "Firebase (Firestore + Auth)", "Stores users, writing samples, issues, dismissals, profile state, and feedback history.")
-        ContainerDb(kb, "Coaching Knowledge Base", "Markdown/text corpus", "Reference material used by RAG for grounded writing feedback.")
-    }
+    %% 5. EXTERNAL SYSTEMS (BOTTOM)
+    GDocs[("<b>Google Docs</b><br/>(External System)")]
+    GOAuth[("<b>Google OAuth</b><br/>(External System)")]
+    LLM[("<b>LLM Provider</b><br/>(External System)")]
 
-    System_Ext(gdocs, "Google Docs", "External writing surface")
-    System_Ext(gauth, "Google OAuth", "Scoped Docs authorization")
-    System_Ext(llm, "LLM Provider", "External model API")
+    %% --- RELATIONSHIPS WITH LABELS ---
+    Writer -->|"Writes and receives<br/>live coaching"| ChromeExt
+    Writer -->|"Views onboarding,<br/>issues, and progress"| WebApp
 
-    Rel(writer, extension, "Writes and receives live coaching")
-    Rel(writer, webapp, "Views onboarding, issues, and progress")
+    ChromeExt -->|"Reads/stores issue history<br/>for sidebar display"| AppAPI
+    ChromeExt -->|"Requests live coaching<br/>and sends dismiss signals"| CoachingAPI
+    WebApp -->|"Onboarding dashboard<br/>and history APIs"| AppAPI
+    WebApp -->|"Submits baseline writing<br/>sample (future)"| CoachingAPI
 
-    Rel(extension, coachapi, "Requests live coaching and sends dismiss signals")
-    Rel(extension, appapi, "Reads/stores issue history for sidebar display")
-    Rel(extension, gdocs, "Reads active doc content")
+    AppAPI -->|"Reads/writes user state<br/>and feedback history"| UserDB
+    CoachingAPI -->|"Reads/writes profile,<br/>issue trends, and outcomes"| UserDB
+    CoachingAPI -->|"Retrieves relevant<br/>guidance chunks"| KnowledgeBase
 
-    Rel(webapp, appapi, "Onboarding, dashboard, and history APIs")
-    Rel(webapp, coachapi, "Submits baseline writing sample (future)")
+    %% External Connections
+    ChromeExt ---->|"Reads active doc content"| GDocs
+    AppAPI ---->|"Obtains access tokens"| GOAuth
+    CoachingAPI ---->|"Generates coaching output"| LLM
 
-    Rel(appapi, datastore, "Reads/writes user state and feedback history")
-    Rel(appapi, gauth, "Manages Google OAuth token flow")
-    Rel(coachapi, datastore, "Reads/writes profile, issue trends, and outcomes")
-    Rel(coachapi, kb, "Retrieves relevant guidance chunks")
-    Rel(coachapi, llm, "Generates coaching output")
-    Rel(appapi, gauth, "Manages OAuth token flow")
+    %% --- LAYOUT ANCHORS ---
+    %% Invisible links to force the vertical stack and prevent horizontal shifting
+    ChromeExt ~~~ AppAPI
+    WebApp ~~~ CoachingAPI
+    UserDB ~~~ GOAuth
+    KnowledgeBase ~~~ LLM
+
+    %% --- STYLING ---
+    style Writer fill:#A8ABCD,stroke:#333,color:#fff
+    style ChromeExt fill:#4A9FFF,stroke:#333,color:#fff
+    style WebApp fill:#4A9FFF,stroke:#333,color:#fff
+    style AppAPI fill:#4A9FFF,stroke:#333,color:#fff
+    style CoachingAPI fill:#4A9FFF,stroke:#333,color:#fff
+    style UserDB fill:#4A9FFF,stroke:#333,color:#fff
+    style KnowledgeBase fill:#4A9FFF,stroke:#333,color:#fff
+    style GDocs fill:#8F8F8F,stroke:#333,color:#fff
+    style GOAuth fill:#8F8F8F,stroke:#333,color:#fff
+    style LLM fill:#8F8F8F,stroke:#333,color:#fff
 ```
 
 ---
