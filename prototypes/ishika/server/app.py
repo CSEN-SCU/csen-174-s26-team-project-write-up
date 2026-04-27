@@ -9,6 +9,10 @@ Then open:
   http://127.0.0.1:5050/feedback.html  (full-page feedback)
 
 Chrome extension (``prototypes/ishika/extension``) calls ``POST /api/feedback``; CORS is enabled for ``/api/*``.
+<<<<<<< HEAD
+=======
+For MCP mode, ``POST /api/mcp/call`` is a local bridge for ``google_docs.get_document_text``.
+>>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 
 Vocabulary upgrades are parsed from the model reply and stored in local SQLite (``writeup.db``) for later prompts.
 
@@ -21,6 +25,12 @@ from __future__ import annotations
 import json
 import os
 import re
+<<<<<<< HEAD
+=======
+import urllib.parse
+import urllib.error
+import urllib.request
+>>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -67,6 +77,11 @@ load_ishika_env()
 GROQ_MODEL = "llama-3.3-70b-versatile"
 MAX_INPUT_CHARS = 16_000
 MAX_OUTPUT_TOKENS = 2_048
+<<<<<<< HEAD
+=======
+MAX_LIVE_INPUT_CHARS = 9_000
+MAX_LIVE_OUTPUT_TOKENS = 640
+>>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 
 ALLOWED_FOCUS = frozenset({"vocabulary", "tone", "clarity"})
 VOCAB_JSON_TAG = "<<<WRITEUP_VOCAB_JSON>>>"
@@ -79,6 +94,219 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 init_db()
 
 
+<<<<<<< HEAD
+=======
+def _as_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return False
+
+
+def _extract_text_from_mcp_payload(payload) -> str:
+    if payload is None:
+        return ""
+    if isinstance(payload, str):
+        return payload.strip()
+    if isinstance(payload, dict):
+        for key in ("documentText", "text", "output_text", "output", "content"):
+            val = payload.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+        for nested in ("result", "data", "response"):
+            got = _extract_text_from_mcp_payload(payload.get(nested))
+            if got:
+                return got
+    if isinstance(payload, list):
+        parts = []
+        for item in payload:
+            txt = _extract_text_from_mcp_payload(item)
+            if txt:
+                parts.append(txt)
+        return "\n".join(parts).strip()
+    return ""
+
+
+def _docs_api_text_from_document_payload(doc_payload: dict) -> str:
+    """
+    Convert Google Docs API `documents.get` payload into plain text.
+    """
+    body = doc_payload.get("body") if isinstance(doc_payload, dict) else None
+    content = body.get("content") if isinstance(body, dict) else None
+    if not isinstance(content, list):
+        return ""
+
+    chunks: list[str] = []
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        para = block.get("paragraph")
+        if not isinstance(para, dict):
+            continue
+        elements = para.get("elements")
+        if not isinstance(elements, list):
+            continue
+        for el in elements:
+            if not isinstance(el, dict):
+                continue
+            text_run = el.get("textRun")
+            if not isinstance(text_run, dict):
+                continue
+            txt = text_run.get("content")
+            if isinstance(txt, str):
+                chunks.append(txt)
+
+    joined = "".join(chunks)
+    # Remove excessive blank lines while preserving paragraph breaks.
+    joined = re.sub(r"\n{3,}", "\n\n", joined).strip()
+    return joined
+
+
+def _local_google_docs_tool_call(tool_name: str, arguments: dict) -> dict:
+    """
+    Local MCP bridge implementation for Google Docs text retrieval.
+    """
+    normalized = (tool_name or "").strip().lower()
+    allowed_tools = {
+        "google_docs.get_document_text",
+        "google.docs.get_document_text",
+        "google-docs.get_document_text",
+    }
+    if normalized not in allowed_tools:
+        raise RuntimeError(
+            f'Unsupported local MCP tool "{tool_name}". Use one of: '
+            + ", ".join(sorted(allowed_tools))
+        )
+
+    doc_id = str(
+        (arguments or {}).get("document_id")
+        or (arguments or {}).get("doc_id")
+        or ""
+    ).strip()
+    if not doc_id:
+        raise RuntimeError("Missing document_id/doc_id for MCP bridge tool call.")
+
+    access_token = (os.environ.get("GOOGLE_DOCS_ACCESS_TOKEN") or "").strip()
+    if not access_token:
+        raise RuntimeError(
+            "GOOGLE_DOCS_ACCESS_TOKEN is not set. "
+            "Set an OAuth access token with https://www.googleapis.com/auth/documents.readonly scope."
+        )
+
+    url = (
+        "https://docs.googleapis.com/v1/documents/"
+        + urllib.parse.quote(doc_id, safe="")
+    )
+    req = urllib.request.Request(url=url, method="GET")
+    req.add_header("Authorization", f"Bearer {access_token}")
+    req.add_header("Accept", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310
+            raw = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Google Docs API HTTP {e.code}: {detail[:300]}") from e
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"Google Docs API connection failed: {e.reason}") from e
+
+    try:
+        doc_payload = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise RuntimeError("Google Docs API returned invalid JSON.") from e
+
+    plain_text = _docs_api_text_from_document_payload(doc_payload)
+    if not plain_text:
+        raise RuntimeError("Google Docs API returned an empty document body.")
+
+    return {
+        "ok": True,
+        "tool": tool_name,
+        "result": {
+            "documentId": doc_id,
+            "documentText": plain_text,
+        },
+    }
+
+
+def fetch_doc_text_via_mcp_bridge(doc_id: str) -> str:
+    """
+    Experimental MCP bridge call.
+
+    Expected env:
+      GOOGLE_DOCS_MCP_BRIDGE_URL=http://127.0.0.1:8787/mcp/call
+    Optional:
+      GOOGLE_DOCS_MCP_TOOL=google_docs.get_document_text
+      GOOGLE_DOCS_MCP_AUTH_BEARER=...
+    """
+    tool = (os.environ.get("GOOGLE_DOCS_MCP_TOOL") or "google_docs.get_document_text").strip()
+    url = (os.environ.get("GOOGLE_DOCS_MCP_BRIDGE_URL") or "").strip()
+    if not url:
+        data = _local_google_docs_tool_call(
+            tool,
+            {"document_id": doc_id, "doc_id": doc_id},
+        )
+        text = _extract_text_from_mcp_payload(data)
+        if not text:
+            raise RuntimeError("Local MCP bridge did not return document text.")
+        return text
+
+    token = (os.environ.get("GOOGLE_DOCS_MCP_AUTH_BEARER") or "").strip()
+
+    payload = {
+        "name": tool,
+        "arguments": {"document_id": doc_id, "doc_id": doc_id},
+    }
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url=url, data=body, method="POST")
+    req.add_header("Content-Type", "application/json")
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310
+            raw = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"MCP bridge HTTP {e.code}: {detail[:200]}") from e
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"MCP bridge connection failed: {e.reason}") from e
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise RuntimeError("MCP bridge returned non-JSON response.") from e
+
+    text = _extract_text_from_mcp_payload(data)
+    if not text:
+        raise RuntimeError("MCP bridge response did not include document text.")
+    return text
+
+
+@app.post("/api/mcp/call")
+def mcp_call_bridge():
+    """
+    Local HTTP MCP bridge endpoint for Google Docs tool calls.
+    """
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get("name") or "").strip()
+    arguments = payload.get("arguments")
+    if not isinstance(arguments, dict):
+        arguments = {}
+    if not name:
+        return jsonify(error='Provide "name" for MCP tool call.'), 400
+
+    try:
+        result = _local_google_docs_tool_call(name, arguments)
+    except RuntimeError as e:
+        return jsonify(error=str(e)), 502
+
+    return jsonify(result)
+
+
+>>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 def normalize_focus(raw) -> list[str]:
     if isinstance(raw, list):
         out = []
@@ -93,7 +321,11 @@ def normalize_focus(raw) -> list[str]:
     return []
 
 
+<<<<<<< HEAD
 def build_system_prompt(focus_list: list[str], vocab_context: str) -> str:
+=======
+def build_system_prompt(focus_list: list[str], vocab_context: str, *, live_mode: bool = False) -> str:
+>>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
     labels = ", ".join(focus_list)
     blocks: list[str] = []
 
@@ -150,7 +382,18 @@ def build_system_prompt(focus_list: list[str], vocab_context: str) -> str:
         "The JSON must be valid UTF-8 and parseable by json.loads."
     )
 
+<<<<<<< HEAD
     return "\n".join(blocks)
+=======
+    out = "\n".join(blocks)
+    if live_mode:
+        out += (
+            "\n\nLive snapshot mode: the user is actively typing and the text may be partial. "
+            "Keep it short: after the Focus line, at most 4 bullets total. "
+            "If vocabulary is selected, include no more than 3 JSON objects."
+        )
+    return out
+>>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 
 
 def parse_vocab_json_suffix(content: str) -> tuple[str, list[dict]]:
@@ -234,6 +477,12 @@ def feedback():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
     focus_list = normalize_focus(data.get("focus"))
+<<<<<<< HEAD
+=======
+    live = _as_bool(data.get("live"))
+    use_mcp = _as_bool(data.get("use_mcp"))
+    doc_id = str(data.get("doc_id") or "").strip()
+>>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 
     if not focus_list:
         return jsonify(
@@ -241,22 +490,47 @@ def feedback():
             '"vocabulary", "tone", and/or "clarity" (e.g. ["vocabulary","tone"]).'
         ), 400
 
+<<<<<<< HEAD
     if not text:
         return jsonify(error='Please provide non-empty text in the JSON body as "text".'), 400
     if len(text) > MAX_INPUT_CHARS:
         return jsonify(error=f"Text is too long (max {MAX_INPUT_CHARS} characters)."), 400
+=======
+    if use_mcp:
+        if not doc_id:
+            return jsonify(error='When "use_mcp" is true, provide "doc_id".'), 400
+        try:
+            text = fetch_doc_text_via_mcp_bridge(doc_id)
+        except RuntimeError as e:
+            return jsonify(error=str(e)), 502
+
+    if not text:
+        return jsonify(error='Please provide non-empty text in the JSON body as "text".'), 400
+    max_input = MAX_LIVE_INPUT_CHARS if live else MAX_INPUT_CHARS
+    if len(text) > max_input:
+        return jsonify(error=f"Text is too long (max {max_input} characters)."), 400
+>>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 
     vocab_context = ""
     if "vocabulary" in focus_list:
         vocab_context = vocabulary_context_for_prompt()
 
+<<<<<<< HEAD
     system = build_system_prompt(focus_list, vocab_context)
+=======
+    system = build_system_prompt(focus_list, vocab_context, live_mode=live)
+    max_tokens = MAX_LIVE_OUTPUT_TOKENS if live else MAX_OUTPUT_TOKENS
+>>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 
     try:
         client = Groq()
         completion = client.chat.completions.create(
             model=GROQ_MODEL,
+<<<<<<< HEAD
             max_tokens=MAX_OUTPUT_TOKENS,
+=======
+            max_tokens=max_tokens,
+>>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
             temperature=0.45,
             messages=[
                 {"role": "system", "content": system},
@@ -273,7 +547,11 @@ def feedback():
     display_feedback, pairs = parse_vocab_json_suffix(raw_content)
     display_feedback = normalize_feedback_text(display_feedback)
     saved = 0
+<<<<<<< HEAD
     if "vocabulary" in focus_list and pairs:
+=======
+    if not live and "vocabulary" in focus_list and pairs:
+>>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
         saved = insert_vocab_pairs(pairs)
 
     return jsonify(
@@ -282,6 +560,12 @@ def feedback():
             "model": GROQ_MODEL,
             "focus": focus_list,
             "vocabulary_pairs_saved": saved,
+<<<<<<< HEAD
+=======
+            "live": live,
+            "source": "mcp_bridge" if use_mcp else "text",
+            "doc_id": doc_id if use_mcp else "",
+>>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
         }
     )
 

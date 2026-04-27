@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Write Up</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <!-- Landing: zero-context gallery walk -->
+    <div id="wuIntro" class="wu-view" role="region" aria-label="About Write Up">
+      <header class="wu-intro-hero">
+        <p class="wu-intro-kicker">Catherine prototype · CSEN174</p>
+        <h1 class="wu-intro-title">Write Up</h1>
+        <p class="wu-intro-lede">
+          A writing <em>mentor</em> in the margins—explains why a word lands flat,
+          suggests sharper options, and never silently rewrites you.
+        </p>
+      </header>
+
+      <div class="wu-intro-grid">
+        <article class="wu-intro-block">
+          <h2 class="wu-intro-h">What it is</h2>
+          <p>
+            A browser extension plus a small local API. You send a passage; it
+            opens a floating panel with vocabulary feedback, synonyms, and
+            teaching notes. Save synonyms into your thesaurus (grouped by
+            <strong>This piece is…</strong>) or star words for later.
+          </p>
+        </article>
+        <article class="wu-intro-block">
+          <h2 class="wu-intro-h">Who it’s for</h2>
+          <p>
+            Aspiring writers and students who want a roadmap of linguistic blind
+            spots—not just instant fixes—aligned with the Write Up vision
+            (personalized mentor + diagnostic mindset).
+          </p>
+        </article>
+        <article class="wu-intro-block">
+          <h2 class="wu-intro-h">Problem it solves</h2>
+          <p>
+            Tools like Grammarly optimize the “now.” Write Up explains
+            <em>why</em> diction weakens your clarity and voice, and nudges you
+            toward habits you can carry across drafts.
+          </p>
+        </article>
+        <article class="wu-intro-block wu-intro-block--how">
+          <h2 class="wu-intro-h">Try it in four steps</h2>
+          <ol class="wu-intro-steps">
+            <li>
+              Open <strong>Goals</strong> (top right) once—set your level and
+              what you want feedback to emphasize.
+            </li>
+            <li>
+              Optionally describe <strong>this piece</strong> (email, lab report,
+              informal essay…) so suggestions match tone and register.
+            </li>
+            <li>
+              <strong>Highlight</strong> text (or <kbd>Ctrl+C</kbd> /
+              <kbd>Cmd+C</kbd>), then <strong>Analyze selection</strong> or
+              <strong>Analyze clipboard</strong>. Or <strong>right-click</strong>
+              → <strong>Analyze with Write Up</strong>.
+            </li>
+            <li>
+              Read the <strong>floating panel</strong> on the page—use
+              <strong>＋</strong> to save a synonym (filed under your current
+              <strong>This piece is…</strong> line).
+            </li>
+          </ol>
+        </article>
+      </div>
+
+      <p class="wu-intro-host">
+        <strong>Demo laptop:</strong> the API server must be running
+        (<code>npm start</code> in <code>server</code>) and Groq configured, or
+        the panel will be empty. Use <strong>Settings</strong> for the API URL.
+      </p>
+
+      <label class="wu-intro-skip">
+        <input id="introSkipNext" type="checkbox" />
+        <span>Skip this screen next time I open the popup</span>
+      </label>
+
+      <button id="btnIntroContinue" type="button" class="wu-btn wu-btn--primary wu-intro-cta">
+        Open Write Up
+      </button>
+    </div>
+
+    <!-- Main: analyze only -->
+    <div id="wuMain" class="wu-view" hidden>
+      <div class="wu-topbar">
+        <div class="wu-brand">
+          <span class="wu-mark" aria-hidden="true">◆</span>
+          <div>
+            <h1>Write Up</h1>
+            <p class="wu-tag">Mentor, not autocorrect</p>
+          </div>
+        </div>
+        <nav class="wu-tabs" aria-label="Sections">
+          <button type="button" class="wu-tab" id="btnTabSettings">Settings</button>
+          <button type="button" class="wu-tab" id="btnTabOnboarding">Goals</button>
+          <button type="button" class="wu-tab wu-tab--ghost" id="btnTabIntro">
+            About
+          </button>
+        </nav>
+      </div>
+
+      <section class="wu-card wu-piece-card">
+        <label class="wu-label" for="pieceContext">This piece is…</label>
+        <textarea
+          id="pieceContext"
+          class="wu-textarea"
+          rows="3"
+          maxlength="400"
+          spellcheck="true"
+          placeholder="e.g. email to a professor · chemistry lab report · informal close-reading essay · LinkedIn post · scholarship application…"
+        ></textarea>
+        <p class="wu-hint wu-hint--tight">
+          Optional. Synonyms and tone follow this genre/task; new thesaurus saves
+          are grouped under this exact text (switch it when you change projects).
+          Used for right-click analyze too.
+        </p>
+      </section>
+
+      <section class="wu-actions wu-actions--hero">
+        <button id="btnAnalyzeSelection" type="button" class="wu-btn wu-btn--primary">
+          Analyze selection
+        </button>
+        <button id="btnAnalyzeClipboard" type="button" class="wu-btn wu-btn--primary">
+          Analyze clipboard
+        </button>
+      </section>
+
+      <p class="wu-hint wu-hint--tight">
+        Fast path: highlight → <strong>right-click</strong> →
+        <strong>Analyze with Write Up</strong>. On tricky editors, copy first
+        then <strong>Analyze clipboard</strong>.
+      </p>
+    </div>
+
+    <!-- Settings: API + profile (small tab destination) -->
+    <div id="wuSettings" class="wu-view" hidden>
+      <div class="wu-subhead">
+        <button type="button" class="wu-back" id="btnSettingsBack">← Back</button>
+        <h2 class="wu-screen-title">Settings</h2>
+      </div>
+
+      <section class="wu-card">
+        <label class="wu-label" for="settingsApiBase">API base URL</label>
+        <input
+          id="settingsApiBase"
+          type="url"
+          autocomplete="off"
+          placeholder="http://localhost:3847"
+        />
+        <p class="wu-hint">
+          Run <code>npm start</code> in <code>prototypes/catherine/server</code>.
+        </p>
+      </section>
+
+      <button id="btnSaveSettings" type="button" class="wu-btn wu-btn--primary">
+        Save connection
+      </button>
+
+      <section class="wu-card wu-profile" id="profileSection" hidden>
+        <h2 class="wu-h2">Linguistic profile</h2>
+        <p class="wu-hint">
+          Terms flagged often across analyses (stored on the server for this
+          device’s API).
+        </p>
+        <ul id="profileList" class="wu-profile-list"></ul>
+        <button id="btnRefreshProfile" type="button" class="wu-btn wu-btn--ghost">
+          Refresh profile
+        </button>
+      </section>
+    </div>
+
+    <!-- Onboarding: level + goals + thesaurus categories -->
+    <div id="wuOnboarding" class="wu-view" hidden>
+      <div class="wu-subhead">
+        <button type="button" class="wu-back" id="btnOnboardingBack">← Back</button>
+        <h2 class="wu-screen-title">Your goals</h2>
+      </div>
+
+      <p class="wu-vision-lead">
+        Write Up is for people who want a <strong>personalized writing mentor</strong>
+        and a clearer picture of <strong>habits over time</strong>—not only
+        instant corrections. Tune how the AI explains issues and suggests
+        synonyms; your saved words are grouped by <strong>This piece is…</strong>
+        on the main screen (lab report vs storyboard, etc.).
+      </p>
+
+      <section class="wu-card">
+        <label class="wu-label" for="obWritingLevel">Writing level</label>
+        <select id="obWritingLevel">
+          <option value="middle_school">Middle school</option>
+          <option value="high_school">High school</option>
+          <option value="college">College</option>
+          <option value="professional">Professional</option>
+        </select>
+        <p class="wu-hint">Sets baseline difficulty for feedback and synonyms.</p>
+      </section>
+
+      <fieldset class="wu-card">
+        <legend class="wu-legend">What should feedback emphasize?</legend>
+        <p class="wu-hint wu-hint--fieldset">
+          Checked items are sent to the model so synonym lists and notes match
+          your priorities (see product vision: pedagogy + diagnostics).
+        </p>
+        <label class="wu-check"
+          ><input type="checkbox" id="wg-vocabulary" value="vocabulary" checked />
+          Stronger vocabulary &amp; precision</label
+        >
+        <label class="wu-check"
+          ><input type="checkbox" id="wg-pedagogy" value="pedagogy" checked />
+          Explain <em>why</em> something reads weak (pedagogical depth)</label
+        >
+        <label class="wu-check"
+          ><input type="checkbox" id="wg-patterns" value="patterns" />
+          Pattern / “crutch word” awareness across drafts</label
+        >
+        <label class="wu-check"
+          ><input type="checkbox" id="wg-practice" value="practice" />
+          Practice-style optional rewrites (short exercises)</label
+        >
+      </fieldset>
+
+      <section class="wu-card wu-card--accent">
+        <h2 class="wu-h2 wu-h2--card">Thesaurus grouping</h2>
+        <p class="wu-hint wu-hint--flush">
+          Saved synonyms are filed under whatever you type in
+          <strong>This piece is…</strong> on the main Write Up screen (e.g.
+          “Chemistry research paper,” “TV storyboard pitch,” “General email”).
+          Change that line before saving if you want a different shelf in
+          <strong>My thesaurus</strong>.
+        </p>
+      </section>
+
+      <button id="btnSaveOnboarding" type="button" class="wu-btn wu-btn--primary">
+        Save goals
+      </button>
+      <p id="onboardingStatus" class="wu-status" role="status"></p>
+    </div>
+
+    <p id="status" class="wu-status wu-status--global" role="status"></p>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

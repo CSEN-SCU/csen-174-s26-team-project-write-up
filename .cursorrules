@@ -4,6 +4,7 @@
 - Primary docs live in `docs/`. Treat these as the source of truth for product intent and team framing.
 - See `product-vision.md` for the full product vision and HMW statement context.
 - See `docs/problem-framing-canvas.md` for constraints, affected user groups, and equity-centered framing.
+- See `architecture/architecture.md` for the system architecture and consolidation plan.
 
 ## Product Goals To Preserve
 

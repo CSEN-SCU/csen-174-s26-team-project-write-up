@@ -41,6 +41,29 @@
     </div>
 
     <section class="tab-panel is-active" id="panel-feedback" role="tabpanel" aria-labelledby="tab-feedback">
+<<<<<<< HEAD
+=======
+      <section class="live-docs" aria-label="Google Docs live feedback">
+        <div class="live-docs-head">
+          <label class="live-docs-toggle">
+            <input type="checkbox" id="docs-live-enabled" />
+            <span>Live in Google Docs</span>
+          </label>
+          <label class="live-docs-toggle live-docs-mcp-toggle">
+            <input type="checkbox" id="docs-live-use-mcp" />
+            <span>Use MCP bridge</span>
+          </label>
+        </div>
+        <p class="hint">
+          Experimental. MCP mode uses the local bridge at <code>/api/mcp/call</code> with
+          <code>GOOGLE_DOCS_ACCESS_TOKEN</code>, or an external bridge via
+          <code>GOOGLE_DOCS_MCP_BRIDGE_URL</code>.
+        </p>
+        <p class="status" id="docs-live-status" aria-live="polite"></p>
+        <pre id="docs-live-output" class="live-docs-output">Enable live mode, then type in a Google Doc.</pre>
+      </section>
+
+>>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
       <div>
         <label class="sp-label" for="draft">Your text</label>
         <textarea id="draft" placeholder="Paste a paragraph from this page or your draft…" spellcheck="true"></textarea>

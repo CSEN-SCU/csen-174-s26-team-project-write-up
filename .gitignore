@@ -1,3 +1,8 @@
+# Local secret env files (e.g. .env.catherine, .env.ishika, .env.teeheehee)
+**/.env.*
+!**/.env.example
+prototypes/catherine/.env.catherine
+
 # Ignore environment variable files everywhere
 .env
 **/.env
@@ -9,3 +14,26 @@ prototypes/chris/server/data/
 
 # Dependencies
 **/node_modules/
+
+prototypes/ishika/.env.ishika
+# Secrets / local auth
+prototypes/cole/.env.teeheehee
+prototypes/cole/google_token.json
+prototypes/cole/client_secret_*.json
+
+
+prototypes/ishika/.env.ishika
+# Secrets / local auth
+prototypes/cole/.env.teeheehee
+prototypes/cole/google_token.json
+prototypes/cole/client_secret_*.json
+
+
+# Local secrets / tokens / large media
+prototypes/cole/.env.teeheehee
+prototypes/cole/google_token.json
+prototypes/cole/client_secret_*.json
+
+
+
+prototypes/ishika/.env.ishika
