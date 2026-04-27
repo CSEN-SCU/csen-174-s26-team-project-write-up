@@ -17,10 +17,18 @@ prototypes/cole/google_token.json
 prototypes/cole/client_secret_*.json
 
 
+prototypes/ishika/.env.ishika
+# Secrets / local auth
+prototypes/cole/.env.teeheehee
+prototypes/cole/google_token.json
+prototypes/cole/client_secret_*.json
+
+
 # Local secrets / tokens / large media
 prototypes/cole/.env.teeheehee
 prototypes/cole/google_token.json
 prototypes/cole/client_secret_*.json
-prototypes/cole/cole_demo.mov
-*.mov
 
+
+
+prototypes/ishika/.env.ishika
