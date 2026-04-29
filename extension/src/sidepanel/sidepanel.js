@@ -1,4 +1,6 @@
-﻿const APP_API_BASE = "http://127.0.0.1:5050";`nconst COACH_API_BASE = "http://127.0.0.1:8787";
+﻿const APP_API_BASE = "http://127.0.0.1:5050";
+const COACH_API_BASE = "http://127.0.0.1:8787";
+const DEFAULT_API_BASE = APP_API_BASE;
 const WORD_BANK_DISPLAY_COUNT = 8;
 
 const homeLink = document.getElementById("home-link");
@@ -81,7 +83,7 @@ function renderLiveStatus(statusText, updatedAt) {
       // no-op
     }
   }
-  docsLiveStatus.textContent = bits.join(" Â· ");
+  docsLiveStatus.textContent = bits.join(" · ");
 }
 
 function pickRandomPairs(items, count) {
@@ -140,15 +142,14 @@ async function runFeedback() {
     return;
   }
 
-  const base = APP_API_BASE;
   submitBtn.disabled = true;
-  statusLine.textContent = "Calling Groqâ€¦";
+  statusLine.textContent = "Calling coaching-api…";
   output.textContent = "";
   output.classList.remove("is-error");
   outputMeta.textContent = "";
 
   try {
-    const res = await fetch(`${base}/coach`, {
+    const res = await fetch(`${COACH_API_BASE}/coach`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, focus }),
@@ -166,14 +167,14 @@ async function runFeedback() {
     if (typeof data.vocabulary_pairs_saved === "number" && data.vocabulary_pairs_saved > 0) {
       metaParts.push(`Saved ${data.vocabulary_pairs_saved} vocab pair(s)`);
     }
-    outputMeta.textContent = metaParts.join(" Â· ");
+    outputMeta.textContent = metaParts.join(" · ");
     statusLine.textContent = "Done";
     await loadWordBank();
   } catch (e) {
     output.classList.add("is-error");
     output.textContent =
       (e && e.message) ||
-      "Could not reach local API at http://127.0.0.1:5050. Start `python app.py` in prototypes/ishika/server.";
+      "Could not reach coaching-api at http://127.0.0.1:8787. Run `npm run dev:coach` from the repo root.";
     statusLine.textContent = "Network error";
   } finally {
     submitBtn.disabled = false;

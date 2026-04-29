@@ -1,1 +1,3 @@
-﻿export async function preCheck(text) {`n  return [];`n}`n
+﻿export async function preCheck(text) {
+  return [];
+}

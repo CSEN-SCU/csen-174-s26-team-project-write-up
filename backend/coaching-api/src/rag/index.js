@@ -1,1 +1,3 @@
-﻿export async function retrieve(query, k = 8) {`n  return [];`n}`n
+﻿export async function retrieve(query, k = 8) {
+  return [];
+}
