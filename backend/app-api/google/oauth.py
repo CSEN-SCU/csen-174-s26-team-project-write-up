@@ -1,1 +1,0 @@
-﻿def start_oauth(state: str):`n    return {"ok": False, "stub": True, "state": state}`n`ndef complete_oauth(code: str, state: str):`n    return {"ok": False, "stub": True, "code": code, "state": state}`n

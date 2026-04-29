@@ -8,7 +8,18 @@ prototypes/catherine/.env.catherine
 **/.env
 *.env
 **/*.env
+
+# Local prototype data (user writing profiles, etc.)
+prototypes/chris/server/data/
+
+.DS_Store
+.vscode/
+.idea/
+*.log
+
+# Dependencies
 **/node_modules/
+
 **/__pycache__/
 **/*.pyc
 **/.venv/
@@ -17,11 +28,6 @@ prototypes/catherine/.env.catherine
 **/build/
 backend/app-api/.local-data/
 backend/coaching-api/data/
-prototypes/chris/server/data/
-.DS_Store
-.vscode/
-.idea/
-*.log
 
 # Secrets / local auth
 prototypes/ishika/.env.ishika

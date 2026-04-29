@@ -1,9 +1,0 @@
-﻿@import "../../shared/design-tokens/tokens.css";
-
-* { box-sizing: border-box; }
-body { margin: 0; font-family: var(--font-body); background: var(--color-paper); color: var(--color-ink); }
-.topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--color-rule); }
-.topbar nav { display: flex; gap: 12px; }
-.topbar a { color: var(--color-ink); text-decoration: none; font-weight: 600; }
-main { padding: 16px; }
-.page { border: 1px solid var(--color-rule); border-radius: var(--radius-md); background: #fff; padding: 16px; }
