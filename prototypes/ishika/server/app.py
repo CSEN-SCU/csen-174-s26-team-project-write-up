@@ -9,10 +9,7 @@ Then open:
   http://127.0.0.1:5050/feedback.html  (full-page feedback)
 
 Chrome extension (``prototypes/ishika/extension``) calls ``POST /api/feedback``; CORS is enabled for ``/api/*``.
-<<<<<<< HEAD
-=======
 For MCP mode, ``POST /api/mcp/call`` is a local bridge for ``google_docs.get_document_text``.
->>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 
 Vocabulary upgrades are parsed from the model reply and stored in local SQLite (``writeup.db``) for later prompts.
 
@@ -25,12 +22,9 @@ from __future__ import annotations
 import json
 import os
 import re
-<<<<<<< HEAD
-=======
-import urllib.parse
 import urllib.error
+import urllib.parse
 import urllib.request
->>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -77,11 +71,8 @@ load_ishika_env()
 GROQ_MODEL = "llama-3.3-70b-versatile"
 MAX_INPUT_CHARS = 16_000
 MAX_OUTPUT_TOKENS = 2_048
-<<<<<<< HEAD
-=======
 MAX_LIVE_INPUT_CHARS = 9_000
 MAX_LIVE_OUTPUT_TOKENS = 640
->>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 
 ALLOWED_FOCUS = frozenset({"vocabulary", "tone", "clarity"})
 VOCAB_JSON_TAG = "<<<WRITEUP_VOCAB_JSON>>>"
@@ -94,8 +85,6 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 init_db()
 
 
-<<<<<<< HEAD
-=======
 def _as_bool(value) -> bool:
     if isinstance(value, bool):
         return value
@@ -306,7 +295,6 @@ def mcp_call_bridge():
     return jsonify(result)
 
 
->>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 def normalize_focus(raw) -> list[str]:
     if isinstance(raw, list):
         out = []
@@ -321,11 +309,7 @@ def normalize_focus(raw) -> list[str]:
     return []
 
 
-<<<<<<< HEAD
-def build_system_prompt(focus_list: list[str], vocab_context: str) -> str:
-=======
 def build_system_prompt(focus_list: list[str], vocab_context: str, *, live_mode: bool = False) -> str:
->>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
     labels = ", ".join(focus_list)
     blocks: list[str] = []
 
@@ -382,9 +366,6 @@ def build_system_prompt(focus_list: list[str], vocab_context: str, *, live_mode:
         "The JSON must be valid UTF-8 and parseable by json.loads."
     )
 
-<<<<<<< HEAD
-    return "\n".join(blocks)
-=======
     out = "\n".join(blocks)
     if live_mode:
         out += (
@@ -393,7 +374,6 @@ def build_system_prompt(focus_list: list[str], vocab_context: str, *, live_mode:
             "If vocabulary is selected, include no more than 3 JSON objects."
         )
     return out
->>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 
 
 def parse_vocab_json_suffix(content: str) -> tuple[str, list[dict]]:
@@ -477,12 +457,9 @@ def feedback():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
     focus_list = normalize_focus(data.get("focus"))
-<<<<<<< HEAD
-=======
     live = _as_bool(data.get("live"))
     use_mcp = _as_bool(data.get("use_mcp"))
     doc_id = str(data.get("doc_id") or "").strip()
->>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 
     if not focus_list:
         return jsonify(
@@ -490,12 +467,6 @@ def feedback():
             '"vocabulary", "tone", and/or "clarity" (e.g. ["vocabulary","tone"]).'
         ), 400
 
-<<<<<<< HEAD
-    if not text:
-        return jsonify(error='Please provide non-empty text in the JSON body as "text".'), 400
-    if len(text) > MAX_INPUT_CHARS:
-        return jsonify(error=f"Text is too long (max {MAX_INPUT_CHARS} characters)."), 400
-=======
     if use_mcp:
         if not doc_id:
             return jsonify(error='When "use_mcp" is true, provide "doc_id".'), 400
@@ -509,28 +480,19 @@ def feedback():
     max_input = MAX_LIVE_INPUT_CHARS if live else MAX_INPUT_CHARS
     if len(text) > max_input:
         return jsonify(error=f"Text is too long (max {max_input} characters)."), 400
->>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 
     vocab_context = ""
     if "vocabulary" in focus_list:
         vocab_context = vocabulary_context_for_prompt()
 
-<<<<<<< HEAD
-    system = build_system_prompt(focus_list, vocab_context)
-=======
     system = build_system_prompt(focus_list, vocab_context, live_mode=live)
     max_tokens = MAX_LIVE_OUTPUT_TOKENS if live else MAX_OUTPUT_TOKENS
->>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 
     try:
         client = Groq()
         completion = client.chat.completions.create(
             model=GROQ_MODEL,
-<<<<<<< HEAD
-            max_tokens=MAX_OUTPUT_TOKENS,
-=======
             max_tokens=max_tokens,
->>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
             temperature=0.45,
             messages=[
                 {"role": "system", "content": system},
@@ -547,11 +509,7 @@ def feedback():
     display_feedback, pairs = parse_vocab_json_suffix(raw_content)
     display_feedback = normalize_feedback_text(display_feedback)
     saved = 0
-<<<<<<< HEAD
-    if "vocabulary" in focus_list and pairs:
-=======
     if not live and "vocabulary" in focus_list and pairs:
->>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
         saved = insert_vocab_pairs(pairs)
 
     return jsonify(
@@ -560,12 +518,9 @@ def feedback():
             "model": GROQ_MODEL,
             "focus": focus_list,
             "vocabulary_pairs_saved": saved,
-<<<<<<< HEAD
-=======
             "live": live,
             "source": "mcp_bridge" if use_mcp else "text",
             "doc_id": doc_id if use_mcp else "",
->>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
         }
     )
 

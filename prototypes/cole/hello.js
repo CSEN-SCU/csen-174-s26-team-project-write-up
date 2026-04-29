@@ -1,8 +1,5 @@
 const API_URL = "http://127.0.0.1:8765/api/generate";
-<<<<<<< HEAD
-=======
 const CLIENT_BUILD = "popup-err-2";
->>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
 
 const promptEl = document.getElementById("prompt");
 const outEl = document.getElementById("output");
@@ -24,17 +21,6 @@ btnEl.addEventListener("click", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt }),
     });
-<<<<<<< HEAD
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(data.error || res.statusText || "Request failed");
-    }
-    outEl.textContent = data.text ?? "";
-  } catch (err) {
-    outEl.textContent =
-      String(err.message || err) +
-      "\n\nIs api.py running? (py api.py from prototypes/cole)";
-=======
     const rawText = await res.text();
     let data = {};
     try {
@@ -58,9 +44,9 @@ btnEl.addEventListener("click", async () => {
       (data && typeof data === "object" && data.text) || rawText || "";
   } catch (err) {
     outEl.textContent =
-      `[${CLIENT_BUILD}]\n` + String(err.message || err) +
-      "\n\nIs groqapi.py running? (py groqapi.py from prototypes/cole)";
->>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
+      `[${CLIENT_BUILD}]\n` +
+      String(err.message || err) +
+      "\n\nStart the Cole API (e.g. py api.py or py groqapi.py from prototypes/cole).";
   } finally {
     btnEl.disabled = false;
   }

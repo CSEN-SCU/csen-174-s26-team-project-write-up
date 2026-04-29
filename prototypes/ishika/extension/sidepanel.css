@@ -358,8 +358,6 @@ label.sp-label {
   white-space: nowrap;
   border: 0;
 }
-<<<<<<< HEAD
-=======
 
 .live-docs {
   border: 1px solid var(--rule);
@@ -405,4 +403,3 @@ label.sp-label {
   line-height: 1.4;
   white-space: pre-wrap;
 }
->>>>>>> c467aba17c05e09ddf44dedfd50bc89b85090755
