@@ -1,0 +1,6 @@
+
+# local secrets
+prototypes/cole/.env.teeheehee
+prototypes/cole/google_token.json
+prototypes/cole/client_secret_*.json
+
