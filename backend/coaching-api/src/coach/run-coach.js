@@ -13,6 +13,7 @@ import {
   spellDictionarySuggestions,
 } from "./heuristics.js";
 import { dedupeSuggestionTitles, suggestionsToFeedback } from "./format.js";
+import { applyRagFeedbackGuardrails } from "./guardrails.js";
 import { coachWithChatCompletions, resolveCoachLlmAttempts } from "../llm/index.js";
 
 const RAG_TOP_K = Math.max(1, Math.min(24, Number(process.env.RAG_TOP_K || 8)));
@@ -84,12 +85,15 @@ export async function runCoach(body) {
 
   const typoCards = obviousSpellingGrammarHeuristics(trimmed);
   const dictCards = spellDictionarySuggestions(trimmed);
-  const suggestions = dedupeSuggestionTitles([
-    ...typoCards,
-    ...dictCards,
-    ...(llmCards.length ? llmCards : []),
-    ...heur,
-  ]).slice(0, 10);
+  const suggestions = applyRagFeedbackGuardrails(
+    dedupeSuggestionTitles([
+      ...typoCards,
+      ...dictCards,
+      ...(llmCards.length ? llmCards : []),
+      ...heur,
+    ]),
+    { userText: trimmed, max: 10 },
+  );
 
   const summary = `surface=${surface}; coachMode=${coachMode}; top retrieval: ${retrieved[0]?.chunk?.id || "none"}; words=${signals.wordCount}; longSentenceCount=${signals.longSentenceCount}; commaSpliceSignals=${signals.commaSpliceSignals}`;
   const profileSnapshot = await appendProfile(userId, summary, signals).catch(() => predictedProfile);
