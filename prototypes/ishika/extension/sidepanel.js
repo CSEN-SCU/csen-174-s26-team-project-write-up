@@ -21,7 +21,6 @@ function getApiBase() {
   return DEFAULT_API_BASE;
 }
 
-/** Landing page is served at the Flask app root (same origin as the API). */
 function landingPageUrl(apiBase) {
   const base = (apiBase || DEFAULT_API_BASE).trim().replace(/\/$/, "");
   return `${base || DEFAULT_API_BASE}/`;
@@ -114,12 +113,7 @@ function renderWordBank(items) {
     .map((pair) => {
       const safeFrom = pair.from.replace(/</g, "&lt;");
       const safeTo = pair.to.replace(/</g, "&lt;");
-      return `
-        <div class="wordbank-item">
-          <div class="wordbank-old">${safeFrom}</div>
-          <div class="wordbank-new">${safeTo}</div>
-        </div>
-      `;
+      return `<div class="wordbank-item"><div class="wordbank-old">${safeFrom}</div><div class="wordbank-new">${safeTo}</div></div>`;
     })
     .join("");
   wordBankList.innerHTML = html || '<p class="wordbank-empty">No saved words yet.</p>';
@@ -139,10 +133,7 @@ async function loadWordBank() {
 
 async function runFeedback() {
   const text = draft.value.trim();
-  if (!text) {
-    statusLine.textContent = "Add some text first.";
-    return;
-  }
+  if (!text) return (statusLine.textContent = "Add some text first.");
   const focus = selectedFocus();
   if (focus.length === 0) {
     statusLine.textContent = "Pick at least one focus: vocabulary, tone, or clarity.";
@@ -166,16 +157,14 @@ async function runFeedback() {
     if (!res.ok) {
       output.classList.add("is-error");
       output.textContent = data.error || `Request failed (${res.status}).`;
-      outputMeta.textContent = "";
       statusLine.textContent = "Error";
       return;
     }
-    output.classList.remove("is-error");
     output.textContent = data.feedback || "";
     const metaParts = [];
     if (data.model) metaParts.push(`Model: ${data.model}`);
     if (typeof data.vocabulary_pairs_saved === "number" && data.vocabulary_pairs_saved > 0) {
-      metaParts.push(`Saved ${data.vocabulary_pairs_saved} vocab pair(s) to local DB`);
+      metaParts.push(`Saved ${data.vocabulary_pairs_saved} vocab pair(s)`);
     }
     outputMeta.textContent = metaParts.join(" · ");
     statusLine.textContent = "Done";
@@ -185,7 +174,6 @@ async function runFeedback() {
     output.textContent =
       (e && e.message) ||
       "Could not reach local API at http://127.0.0.1:5050. Start `python app.py` in prototypes/ishika/server.";
-    outputMeta.textContent = "";
     statusLine.textContent = "Network error";
   } finally {
     submitBtn.disabled = false;

@@ -8,8 +8,8 @@ Product scaffold aligned to C4 Option B (`docs/architecture.md`):
 - `shared` (contracts and design tokens for Miranda)
 
 Ownership:
-- Miranda: `docs/`, `shared/`
-- Cole: `webapp/`
-- Ishika: `extension/`
-- Catherine: `backend/app-api/`
-- Chris: `backend/coaching-api/`
+- Miranda: user stories and mockups, plus integration flow between `extension/` and `webapp/` (`docs/`, `shared/`)
+- Cole: web app visuals and UI (`webapp/`)
+- Ishika: extension visuals and UI (`extension/`)
+- Catherine: database setup, management, and integration (`backend/app-api/`)
+- Chris: RAG management, training, and integration (`backend/coaching-api/`)
