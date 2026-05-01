@@ -1,9 +1,10 @@
-﻿const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
-const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
-const GROQ_API_BASE = (process.env.GROQ_API_BASE || "https://api.groq.com/openai/v1").replace(/\/$/, "");
-const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
-const COACH_LLM = String(process.env.COACH_LLM || "auto").toLowerCase();
+﻿import {
+  coachLogLlmEnabled,
+  coachLogLlmPreviewLimit,
+  coachLlmLog,
+  previewText,
+  redactSecrets,
+} from "./log.js";
 
 const DRAFTING_MODE_APPEND = `
 
@@ -91,15 +92,22 @@ export function filterSuggestionsForCoachMode(suggestions, coachMode) {
 }
 
 export function resolveCoachLlmAttempts() {
-  const groq = GROQ_API_KEY
-    ? [{ id: "groq", label: "Groq", apiKey: GROQ_API_KEY, baseUrl: GROQ_API_BASE, model: GROQ_MODEL }]
+  const openaiKey = process.env.OPENAI_API_KEY || "";
+  const groqKey = process.env.GROQ_API_KEY || "";
+  const openaiModel = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const groqBase = (process.env.GROQ_API_BASE || "https://api.groq.com/openai/v1").replace(/\/$/, "");
+  const groqModel = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+  const coachLlm = String(process.env.COACH_LLM || "auto").toLowerCase();
+
+  const groq = groqKey
+    ? [{ id: "groq", label: "Groq", apiKey: groqKey, baseUrl: groqBase, model: groqModel }]
     : [];
-  const openai = OPENAI_API_KEY
-    ? [{ id: "openai", label: "OpenAI", apiKey: OPENAI_API_KEY, baseUrl: "https://api.openai.com/v1", model: OPENAI_MODEL }]
+  const openai = openaiKey
+    ? [{ id: "openai", label: "OpenAI", apiKey: openaiKey, baseUrl: "https://api.openai.com/v1", model: openaiModel }]
     : [];
 
-  if (COACH_LLM === "openai") return [...openai, ...groq];
-  if (COACH_LLM === "groq") return [...groq, ...openai];
+  if (coachLlm === "openai") return [...openai, ...groq];
+  if (coachLlm === "groq") return [...groq, ...openai];
   return [...groq, ...openai];
 }
 
@@ -122,6 +130,22 @@ export async function coachWithChatCompletions(
   focus = [],
 ) {
   const { system, user } = coachMessages(text, retrieved, profileNotes, profileSnapshot, coachMode, focus);
+  const previewLimit = coachLogLlmPreviewLimit();
+  const temperature = coachMode === "typing" ? 0.22 : 0.4;
+
+  if (coachLogLlmEnabled()) {
+    coachLlmLog("request", {
+      provider: cfg.id,
+      model: cfg.model,
+      coachMode,
+      temperature,
+      systemChars: system.length,
+      userChars: user.length,
+      systemPreview: previewText(system, previewLimit),
+      userPreview: previewText(user, previewLimit),
+    });
+  }
+
   const url = `${cfg.baseUrl.replace(/\/$/, "")}/chat/completions`;
   const res = await fetch(url, {
     method: "POST",
@@ -131,7 +155,7 @@ export async function coachWithChatCompletions(
     },
     body: JSON.stringify({
       model: cfg.model,
-      temperature: coachMode === "typing" ? 0.22 : 0.4,
+      temperature,
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
@@ -139,13 +163,48 @@ export async function coachWithChatCompletions(
     }),
   });
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`${cfg.label} error: ${err}`);
+    const errRaw = await res.text();
+    const safe = redactSecrets(errRaw);
+    if (coachLogLlmEnabled()) {
+      coachLlmLog("http_error", {
+        provider: cfg.id,
+        model: cfg.model,
+        status: res.status,
+        bodyPreview: previewText(safe, Math.min(previewLimit, 900)),
+      });
+    }
+    throw new Error(`${cfg.label} error: ${safe.slice(0, 1200)}`);
   }
   const data = await res.json();
   const raw = data.choices?.[0]?.message?.content || "{}";
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+  } catch (e) {
+    if (coachLogLlmEnabled()) {
+      coachLlmLog("parse_error", {
+        provider: cfg.id,
+        model: cfg.model,
+        message: e instanceof Error ? e.message : String(e),
+        rawPreview: previewText(raw, previewLimit),
+      });
+    }
+    throw e;
+  }
   const rawList = Array.isArray(parsed.suggestions) ? parsed.suggestions : [];
-  return filterSuggestionsForCoachMode(rawList, coachMode);
+  const filtered = filterSuggestionsForCoachMode(rawList, coachMode);
+
+  if (coachLogLlmEnabled()) {
+    coachLlmLog("response", {
+      provider: cfg.id,
+      model: cfg.model,
+      messageChars: raw.length,
+      suggestionsParsed: rawList.length,
+      suggestionsAfterFilter: filtered.length,
+      messagePreview: previewText(raw, previewLimit),
+    });
+  }
+
+  return filtered;
 }

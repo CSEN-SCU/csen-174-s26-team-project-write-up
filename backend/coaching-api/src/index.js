@@ -1,12 +1,11 @@
-﻿import express from "express";
+﻿import "dotenv/config";
+import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import { loadKnowledge, getChunkCount, hasSpellAugment } from "./rag/index.js";
 import { applyDismiss, loadProfile, summarizeProfile } from "./profile/index.js";
 import { runCoach } from "./coach/run-coach.js";
 import { resolveCoachLlmAttempts } from "./llm/index.js";
-
-dotenv.config();
+import { coachLogLlmEnabled, coachLogLlmFullBodies, coachLogLlmPreviewLimit } from "./llm/log.js";
 
 const app = express();
 app.use(cors());
@@ -41,6 +40,9 @@ app.get("/health", (_req, res) => {
     hasCoachLlm: attempts.length > 0,
     ragTopK: Math.max(1, Math.min(24, Number(process.env.RAG_TOP_K || 8))),
     spellchecker: hasSpellAugment(),
+    coachLogLlm: coachLogLlmEnabled(),
+    coachLogLlmFull: coachLogLlmFullBodies(),
+    coachLogLlmPreview: coachLogLlmPreviewLimit(),
   });
 });
 
