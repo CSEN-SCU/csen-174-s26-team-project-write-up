@@ -4,6 +4,8 @@ Contract tests for the Write Up Chrome extension side panel.
 The visible navigation between main views is the tab bar (Feedback / Word Bank).
 These tests assert that markup and default styles for that bar are present so it
 can render in the side panel (DOM + CSS contract). They do not launch Chrome.
+
+Run: python -m pytest tests/test_extension_navigation_bar.py -v
 """
 
 from pathlib import Path
@@ -32,6 +34,24 @@ def test_sidepanel_css_shows_tab_bar_by_default():
     css = _SIDEPANEL_CSS.read_text(encoding="utf-8")
     assert ".tabbar" in css
     start = css.find(".tabbar")
-    block = css[start : start + 120]
-    assert "display: flex" in block
+    assert start != -1, ".tabbar rule not found in sidepanel.css"
+    brace = css.find("{", start)
+    end = css.find("}", brace)
+    assert brace != -1 and end != -1, ".tabbar rule block not parseable"
+    block = css[brace : end + 1]
+    assert "display: flex" in block or "display:flex" in block.replace(" ", "")
     assert "display: none" not in block
+
+
+def test_active_navigation_tab_announces_current_for_assistive_tech():
+    """As a user relying on a screen reader, the active tab exposes aria-current (TDD RED)."""
+    html = _SIDEPANEL_HTML.read_text(encoding="utf-8")
+    assert 'aria-current="true"' in html or 'aria-current="page"' in html, (
+        "Mark the active tab with aria-current so assistive tech knows which view is open."
+    )
+
+
+if __name__ == "__main__":
+    import pytest
+
+    raise SystemExit(pytest.main([__file__, "-v"]))
