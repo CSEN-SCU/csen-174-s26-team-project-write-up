@@ -287,6 +287,6 @@ The improved version strengthens the test from simple substring checks into a cl
 
 ## Part 5 — Jolli setup
 
-![Part 5 Jolli setup: Write Up Automation with Active GitHub source](./images/sprint-1-jolli-automation.png)
+![Write Up Space Settings: Automation page with GitHub repository source marked Active](./images/writeup-space-settings-automation.png)
 
 *Automation shows the team repo `csen-scu/csen-174-s26-team-project-write-up` on branch `main` as an Active GitHub Public source.*
