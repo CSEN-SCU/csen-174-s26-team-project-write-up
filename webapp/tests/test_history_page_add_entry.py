@@ -3,13 +3,15 @@ Contract tests for the History page list behavior in the Vite/React webapp.
 
 These read webapp/source and assert that the History view includes the markup and
 handlers needed for a user to add entries (local demo list via "Add entry").
-They do not start the dev server or run a browser, similar to
-test_extension_navigation_bar.py.
+They do not start the dev server or run a browser, similar to the extension
+side panel contract tests.
+
+Run from repo root: pytest webapp/tests/test_history_page_add_entry.py -v
 """
 
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 _HISTORY_JSX = _REPO_ROOT / "webapp" / "src" / "pages" / "History.jsx"
 
 

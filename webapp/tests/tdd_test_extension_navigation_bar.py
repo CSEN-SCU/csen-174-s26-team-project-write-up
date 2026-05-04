@@ -5,12 +5,12 @@ The visible navigation between main views is the tab bar (Feedback / Word Bank).
 These tests assert that markup and default styles for that bar are present so it
 can render in the side panel (DOM + CSS contract). They do not launch Chrome.
 
-Run: python -m pytest tests/test_extension_navigation_bar.py -v
+Run from repo root: pytest webapp/tests/tdd_test_extension_navigation_bar.py -v
 """
 
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 _SIDEPANEL_HTML = _REPO_ROOT / "extension" / "src" / "sidepanel" / "sidepanel.html"
 _SIDEPANEL_CSS = _REPO_ROOT / "extension" / "src" / "sidepanel" / "sidepanel.css"
 
