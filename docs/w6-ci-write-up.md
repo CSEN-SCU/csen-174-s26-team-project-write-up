@@ -1,10 +1,10 @@
-# Week 5 — GitHub Actions CI (write-up)
+# Week 6 — GitHub Actions CI (write-up)
 
-## Merged PR with a passing CI check
+## Merged PR with a passing CI check 
 
 After this workflow lands on `main`, open the repository’s **Pull requests** tab, find the merged PR that introduced `.github/workflows/ci.yml`, and link it here. The PR’s **Checks** tab should show the **CI** workflow green.
 
-**Link:** _Replace with merged PR URL, e.g._ `https://github.com/CSEN-SCU/csen-174-s26-team-project-write-up/pull/<number>`
+**Link:** _Replace with merged PR URL, e.g._ `https://github.com/CSEN-SCU/csen-174-s26-team-project-write-up/pull/67`
 
 ## Secrets handling (short summary)
 
