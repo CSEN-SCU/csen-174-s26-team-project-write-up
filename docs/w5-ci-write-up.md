@@ -1,6 +1,6 @@
 # Week 5 — GitHub Actions CI (write-up)
 
-## Merged PR with a passing CI check
+## Merged PR with a passing CI check 
 
 After this workflow lands on `main`, open the repository’s **Pull requests** tab, find the merged PR that introduced `.github/workflows/ci.yml`, and link it here. The PR’s **Checks** tab should show the **CI** workflow green.
 
