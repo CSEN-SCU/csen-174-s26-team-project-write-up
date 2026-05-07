@@ -13,3 +13,10 @@ Ownership:
 - Ishika: extension visuals and UI (`extension/`)
 - Catherine: database setup, management, and integration (`backend/app-api/`)
 - Chris: RAG management, training, and integration (`backend/coaching-api/`)
+
+Environment templates:
+- Global shared template: `.env.example`
+- App API template: `backend/app-api/.env.example`
+- Coaching API template: `backend/coaching-api/.env.example`
+- Web app template: `webapp/.env.example`
+- Extension template: `extension/.env.example`
