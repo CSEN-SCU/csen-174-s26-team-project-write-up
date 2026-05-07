@@ -51,6 +51,24 @@ function cosine(a, b) {
   return dot / (Math.sqrt(na) * Math.sqrt(nb));
 }
 
+/**
+ * @param {{ id: string, source: string, text: string }[]} drafts
+ * @param {string} queryText
+ * @param {number} [topK]
+ */
+export function retrieveFromUserDrafts(drafts, queryText, topK = 4) {
+  const rows = Array.isArray(drafts) ? drafts : [];
+  if (!rows.length) return [];
+  const qTf = buildTf(tokenize(String(queryText || "")));
+  const qVec = new Map(qTf);
+  const scored = rows.map((chunk) => {
+    const cVec = new Map(buildTf(tokenize(String(chunk.text || ""))));
+    return { chunk, score: cosine(qVec, cVec) };
+  });
+  scored.sort((x, y) => y.score - x.score);
+  return scored.slice(0, topK).filter((s) => s.score > 0);
+}
+
 export function retrieve(queryText, topK = 5) {
   const qTf = buildTf(tokenize(queryText));
   const qVec = tfidfVector(qTf);

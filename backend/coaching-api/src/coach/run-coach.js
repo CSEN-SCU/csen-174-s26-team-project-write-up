@@ -1,4 +1,4 @@
-import { retrieveForWritingCoach } from "../rag/index.js";
+import { retrieveForWritingCoach, retrieveFromUserDrafts } from "../rag/index.js";
 import {
   readProfileStore,
   createEmptyProfile,
@@ -6,6 +6,7 @@ import {
   mergeProfile,
   summarizeProfile,
   appendProfile,
+  appendUserDraft,
 } from "../profile/index.js";
 import {
   obviousSpellingGrammarHeuristics,
@@ -25,22 +26,43 @@ const RAG_TOP_K = Math.max(1, Math.min(24, Number(process.env.RAG_TOP_K || 8)));
  * @param {string} [body.surface]
  * @param {string} [body.coachMode]
  * @param {string[]} [body.focus]
+ * @param {string} [body.goals]
+ * @param {string} [body.audience]
+ * @param {"formal"|"neutral"|"casual"} [body.tonePreference]
  */
 export async function runCoach(body) {
   const {
     text,
-    userId = "anonymous",
+    userId: rawUserId,
     surface = "extension",
     coachMode: rawMode,
     focus: rawFocus,
+    goals: rawGoals,
+    audience: rawAudience,
+    tonePreference: rawTonePreference,
   } = body || {};
 
   if (text == null || typeof text !== "string") {
     return { error: "Missing text", status: 400 };
   }
+  const userId = String(rawUserId || "").trim();
+  if (!userId || userId.toLowerCase() === "anonymous") {
+    return {
+      error: "Missing stable userId. Personalization requires a persistent non-anonymous userId.",
+      status: 400,
+    };
+  }
 
   const coachMode = rawMode === "typing" ? "typing" : "paused";
   const focus = Array.isArray(rawFocus) ? rawFocus.map((f) => String(f)) : [];
+  const personalization = {
+    goals: typeof rawGoals === "string" ? rawGoals.trim().slice(0, 300) : "",
+    audience: typeof rawAudience === "string" ? rawAudience.trim().slice(0, 200) : "",
+    tonePreference:
+      rawTonePreference === "formal" || rawTonePreference === "casual" || rawTonePreference === "neutral"
+        ? rawTonePreference
+        : "neutral",
+  };
 
   const trimmed = text.trim().slice(0, 12000);
   if (!trimmed) {
@@ -51,8 +73,20 @@ export async function runCoach(body) {
     };
   }
 
-  const retrieved = retrieveForWritingCoach(trimmed, RAG_TOP_K);
   const store = await readProfileStore();
+  const globalRetrieved = retrieveForWritingCoach(trimmed, RAG_TOP_K);
+  const userRetrieved = retrieveFromUserDrafts(store[userId]?.drafts || [], trimmed, Math.min(4, RAG_TOP_K));
+  const retrieved = [...globalRetrieved, ...userRetrieved]
+    .reduce((acc, item) => {
+      const prev = acc.get(item.chunk.id);
+      if (!prev || item.score > prev.score) {
+        acc.set(item.chunk.id, item);
+      }
+      return acc;
+    }, new Map())
+    .values();
+  const retrievedSorted = [...retrieved].sort((a, b) => b.score - a.score).slice(0, RAG_TOP_K);
+
   const profileNotes = store[userId]?.notes?.map((n) => n.summary) || [];
   const existingProfile = store[userId]?.profile || createEmptyProfile();
   const signals = analyzeWritingSignals(trimmed);
@@ -72,6 +106,7 @@ export async function runCoach(body) {
         cfg,
         coachMode,
         focus,
+        personalization,
       );
       if (Array.isArray(ai) && ai.length) {
         llmCards = ai;
@@ -95,10 +130,11 @@ export async function runCoach(body) {
     { userText: trimmed, max: 10 },
   );
 
-  const summary = `surface=${surface}; coachMode=${coachMode}; top retrieval: ${retrieved[0]?.chunk?.id || "none"}; words=${signals.wordCount}; longSentenceCount=${signals.longSentenceCount}; commaSpliceSignals=${signals.commaSpliceSignals}`;
+  const summary = `surface=${surface}; coachMode=${coachMode}; top retrieval: ${retrievedSorted[0]?.chunk?.id || "none"}; words=${signals.wordCount}; longSentenceCount=${signals.longSentenceCount}; commaSpliceSignals=${signals.commaSpliceSignals}`;
   const profileSnapshot = await appendProfile(userId, summary, signals).catch(() => predictedProfile);
+  await appendUserDraft(userId, trimmed).catch(() => {});
 
-  const retrievedChunks = retrieved.map((r) => ({
+  const retrievedChunks = retrievedSorted.map((r) => ({
     id: r.chunk.id,
     score: r.score,
     text: r.chunk.text,
@@ -115,6 +151,8 @@ export async function runCoach(body) {
       feedback,
       source: "coaching-api",
       model: modelUsed,
+      userId,
+      personalization,
       profileSnapshot,
       retrievedChunks,
       vocabulary_pairs_saved: 0,

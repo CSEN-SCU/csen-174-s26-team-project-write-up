@@ -26,8 +26,17 @@ In this MODE, ignore any instruction elsewhere in this prompt to always produce 
  * @param {object | null} profileSnapshot
  * @param {"typing"|"paused"} coachMode
  * @param {string[]} [focus]
+ * @param {{ goals?: string, audience?: string, tonePreference?: "formal"|"neutral"|"casual" }} [personalization]
  */
-export function coachMessages(text, retrieved, profileNotes, profileSnapshot, coachMode = "paused", focus = []) {
+export function coachMessages(
+  text,
+  retrieved,
+  profileNotes,
+  profileSnapshot,
+  coachMode = "paused",
+  focus = [],
+  personalization = {},
+) {
   const ctx = retrieved.map((r) => `- (${r.chunk.id}) ${r.chunk.text}`).join("\n");
   const profile =
     profileNotes?.length ? `User pattern notes (do not contradict):\n- ${profileNotes.slice(-5).join("\n- ")}` : "";
@@ -39,6 +48,17 @@ export function coachMessages(text, retrieved, profileNotes, profileSnapshot, co
   const focusLine =
     Array.isArray(focus) && focus.length > 0
       ? `Writer asked for feedback emphasis on: **${focus.join(", ")}**. Weight suggestions toward these areas when they clearly apply to USER TEXT.`
+      : "";
+  const audienceLine = personalization?.audience
+    ? `Target audience: ${String(personalization.audience).slice(0, 200)}.`
+    : "";
+  const goalsLine = personalization?.goals
+    ? `Writer goals: ${String(personalization.goals).slice(0, 300)}.`
+    : "";
+  const tonePreference = String(personalization?.tonePreference || "").toLowerCase();
+  const toneLine =
+    tonePreference === "formal" || tonePreference === "casual" || tonePreference === "neutral"
+      ? `Requested tone direction: ${tonePreference}. Respect this preference without flattening voice.`
       : "";
 
   const system = `You are Write Up, a sophisticated writing coach for drafts that may be informal, spoken, or literary. Your job is to help the reader understand the writer better—not to flatten personality into generic “correct” prose.
@@ -63,12 +83,14 @@ How to give feedback:
 - Optional micro_edit: one small alternative phrasing for ONE clause/sentence only, not mandatory.
 - Use the CONTEXT snippets as teaching references, not as rules to copy verbatim.
 - Use PROFILE data to preserve the writer's voice while choosing the smallest high-impact edits.
+- If audience/goals/tone preference are provided, align advice to them while still preserving authentic voice.
 
 Output strictly as JSON: {"suggestions":[{"type":"pattern|coherence|clarity|grammar|punctuation|voice","title":"","body":"","micro_edit":null|string}]}`;
 
   const systemFinal = coachMode === "typing" ? `${system}${DRAFTING_MODE_APPEND}` : system;
 
-  const user = `USER TEXT:\n${text}\n\nCONTEXT:\n${ctx}\n\n${focusLine ? `${focusLine}\n\n` : ""}${profile}\n\n${profileLine}`;
+  const personalizationBlock = [audienceLine, goalsLine, toneLine].filter(Boolean).join("\n");
+  const user = `USER TEXT:\n${text}\n\nCONTEXT:\n${ctx}\n\n${focusLine ? `${focusLine}\n\n` : ""}${personalizationBlock ? `PERSONALIZATION:\n${personalizationBlock}\n\n` : ""}${profile}\n\n${profileLine}`;
   return { system: systemFinal, user };
 }
 
@@ -119,6 +141,7 @@ export function resolveCoachLlmAttempts() {
  * @param {{ apiKey: string, baseUrl: string, model: string, label: string }} cfg
  * @param {"typing"|"paused"} coachMode
  * @param {string[]} [focus]
+ * @param {{ goals?: string, audience?: string, tonePreference?: "formal"|"neutral"|"casual" }} [personalization]
  */
 export async function coachWithChatCompletions(
   text,
@@ -128,8 +151,17 @@ export async function coachWithChatCompletions(
   cfg,
   coachMode = "paused",
   focus = [],
+  personalization = {},
 ) {
-  const { system, user } = coachMessages(text, retrieved, profileNotes, profileSnapshot, coachMode, focus);
+  const { system, user } = coachMessages(
+    text,
+    retrieved,
+    profileNotes,
+    profileSnapshot,
+    coachMode,
+    focus,
+    personalization,
+  );
   const previewLimit = coachLogLlmPreviewLimit();
   const temperature = coachMode === "typing" ? 0.22 : 0.4;
 

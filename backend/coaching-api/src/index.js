@@ -19,7 +19,7 @@ app.get("/", (_req, res) => {
   <p><strong>coaching-api</strong> is running. There is no web UI on this port.</p>
   <ul>
     <li><a href="/health">GET /health</a> — status, RAG chunk count, LLM config</li>
-    <li>POST /coach — JSON body: <code>{"text":"...","userId":"optional"}</code></li>
+    <li>POST /coach — JSON body: <code>{"text":"...","userId":"stable-id","goals":"optional","audience":"optional","tonePreference":"formal|neutral|casual"}</code></li>
     <li>POST /dismiss — optional feedback dismiss events</li>
     <li>GET /profile/:userId — stored coaching profile</li>
   </ul>

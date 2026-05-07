@@ -150,6 +150,37 @@ export async function appendProfile(userId, summary, signals) {
   return summarizeProfile(prev.profile);
 }
 
+/**
+ * Keep a small rolling draft history per user for retrieval personalization.
+ * @param {string} userId
+ * @param {string} text
+ */
+export async function appendUserDraft(userId, text) {
+  await ensureDataDir();
+  const store = await readProfileStore();
+  const prev = store[userId] || { notes: [], profile: createEmptyProfile(), updatedAt: null };
+  const drafts = Array.isArray(prev.drafts) ? prev.drafts : [];
+  const trimmed = String(text || "").trim().slice(0, 12000);
+  if (!trimmed) return;
+
+  drafts.push({
+    id: `user-draft:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+    source: "user-draft-history",
+    text: trimmed,
+    createdAt: new Date().toISOString(),
+  });
+
+  if (drafts.length > 25) {
+    prev.drafts = drafts.slice(drafts.length - 25);
+  } else {
+    prev.drafts = drafts;
+  }
+
+  prev.updatedAt = new Date().toISOString();
+  store[userId] = prev;
+  await fs.writeFile(PROFILE_PATH, JSON.stringify(store, null, 2), "utf8");
+}
+
 /** @param {string} userId */
 export async function loadProfile(userId) {
   const store = await readProfileStore();
