@@ -32,7 +32,8 @@ body {
   min-height: 320px;
   padding: 10px 10px 12px;
   gap: 8px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sp-header {
@@ -127,7 +128,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  flex: 1;
+  flex: 0 0 auto;
   min-height: 0;
 }
 
@@ -237,6 +238,10 @@ label.sp-label {
   margin-bottom: 4px;
 }
 
+.sp-label-space {
+  height: 3px;
+}
+
 #draft {
   width: 100%;
   min-height: 100px;
@@ -300,11 +305,11 @@ label.sp-label {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 120px;
+  /* min-height: 120px; */
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.55);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .out-head {
@@ -318,17 +323,16 @@ label.sp-label {
 }
 
 .out-meta {
-  padding: 4px 10px 0;
-  font-size: 10px;
+  padding: 4px 5px 0;
   opacity: 0.55;
 }
 
 #output {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
+  /* min-height: 0; */
   margin: 0;
   padding: 8px 10px 10px;
-  overflow-y: auto;
+  overflow-y: visible;
   white-space: pre-wrap;
   word-break: break-word;
   font: inherit;

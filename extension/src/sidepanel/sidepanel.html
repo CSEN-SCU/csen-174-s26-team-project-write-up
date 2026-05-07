@@ -11,7 +11,12 @@
     <header class="sp-header">
       <div class="sp-header-text">
         <strong>Write Up</strong>
-        <span class="sp-sub">Side panel · prototype</span>
+      </div>
+      <div class="live-docs-head">
+        <label class="live-docs-toggle">
+          <input type="checkbox" id="docs-live-enabled" />
+          <span>Live in Google Docs</span>
+        </label>
       </div>
       <a
         id="home-link"
@@ -42,16 +47,7 @@
 
     <section class="tab-panel is-active" id="panel-feedback" role="tabpanel" aria-labelledby="tab-feedback">
       <section class="live-docs" aria-label="Google Docs live feedback">
-        <div class="live-docs-head">
-          <label class="live-docs-toggle">
-            <input type="checkbox" id="docs-live-enabled" />
-            <span>Live in Google Docs</span>
-          </label>
-          <label class="live-docs-toggle live-docs-mcp-toggle">
-            <input type="checkbox" id="docs-live-use-mcp" />
-            <span>Use MCP bridge</span>
-          </label>
-        </div>
+        
         <p class="hint">
           Experimental. MCP mode uses the local bridge at <code>/api/mcp/call</code> with
           <code>GOOGLE_DOCS_ACCESS_TOKEN</code>, or an external bridge via
@@ -62,6 +58,7 @@
       </section>
 
       <div>
+        <p class="sp-label-space"></p>
         <label class="sp-label" for="draft">Your text</label>
         <textarea id="draft" placeholder="Paste a paragraph from this page or your draft…" spellcheck="true"></textarea>
       </div>
@@ -78,8 +75,7 @@
 
       <div class="out-wrap">
         <div class="out-head">Feedback</div>
-        <p class="out-meta" id="output-meta"></p>
-        <pre id="output">Feedback will appear here.</pre>
+        <pre id="output">This is the feedback example from the model. This is the feedback example from the model. This is the feedback example from the model. This is the feedback example from the model. This is the feedback example from the model. This is the feedback example from the model.</pre>
       </div>
     </section>
 
