@@ -6,11 +6,36 @@ Install backend dependencies:
 pip install -r requirements.txt
 ```
 
-Environment options for Firebase credentials (priority order):
+## Environments
 
-1. `FIREBASE_SERVICE_ACCOUNT_JSON` - raw service-account JSON string (best for CI).
-2. `FIREBASE_CREDENTIALS_PATH` - path to a local JSON file (best for local dev).
-3. Application Default Credentials (ADC) if both variables are unset.
+Set `APP_ENV` to one of `dev` (default), `staging`, `prod`, or `test`.
+
+Firebase credential lookup order (first match wins):
+
+1. `FIREBASE_SERVICE_ACCOUNT_JSON_<ENV>` (e.g. `FIREBASE_SERVICE_ACCOUNT_JSON_DEV`)
+2. `FIREBASE_CREDENTIALS_PATH_<ENV>`
+3. `FIREBASE_SERVICE_ACCOUNT_JSON` (unsuffixed)
+4. `FIREBASE_CREDENTIALS_PATH` (unsuffixed)
+5. Application Default Credentials (ADC)
+
+This lets dev, staging, and prod each use their own service account without code changes.
+
+### Dev auth bypass
+
+For local testing without real Firebase ID tokens, set:
+
+```bash
+APP_ENV=dev
+APP_AUTH_BYPASS=1
+```
+
+Then send `X-Debug-User: <uid>` instead of `Authorization: Bearer <id_token>`. The bypass only activates when `APP_ENV` is `dev` or `test`. Never enable this in production.
+
+Environment options for Firebase credentials (same order as above; legacy short list):
+
+1. `FIREBASE_SERVICE_ACCOUNT_JSON` (or env-suffixed variant) — raw JSON string (best for CI).
+2. `FIREBASE_CREDENTIALS_PATH` (or env-suffixed variant) — path to a local JSON file (best for local dev).
+3. ADC if unset.
 
 Run locally:
 
@@ -24,4 +49,4 @@ Verify service health:
 curl http://127.0.0.1:5050/health
 ```
 
-For GitHub Actions, use repository secret `${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}`.
+For GitHub Actions, use repository secrets such as `${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}` or per-env names like `${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON_DEV }}`.

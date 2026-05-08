@@ -1,7 +1,8 @@
 ﻿from datetime import datetime, timezone
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, g, jsonify, request
 
+from auth import require_auth
 from errors import safe_firestore
 from firebase.init import get_db
 
@@ -38,6 +39,7 @@ def _envelope(items, *, degraded=False, error=None):
 
 
 @bp.get("/feedback-history")
+@require_auth
 def history_list():
     doc_id_filter = request.args.get("docId")
 
@@ -46,6 +48,8 @@ def history_list():
         items = []
         for doc in db.collection(COLLECTION).stream():
             data = doc.to_dict()
+            if data.get("userId") != g.user_id:
+                continue
             if doc_id_filter and data.get("docId") != doc_id_filter:
                 continue
             items.append(data)
@@ -58,13 +62,14 @@ def history_list():
 
 
 @bp.post("/feedback-history")
+@require_auth
 def history_add():
     body = request.get_json(silent=True) or {}
-    user_id = body.get("userId")
     doc_id = body.get("docId")
-    if not user_id or not doc_id:
-        return jsonify(ok=False, error="missing_user_or_doc"), 400
+    if not doc_id:
+        return jsonify(ok=False, error="missing_doc"), 400
 
+    user_id = g.user_id
     safe_card = body.get("cardId") or "default"
     history_id = f"{user_id}_{doc_id}_{safe_card}"
 
@@ -80,8 +85,6 @@ def history_add():
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
     record = {k: v for k, v in record.items() if v is not None}
-    # confidence is always present (defaulted + clamped) so the dashboard
-    # can rely on a numeric score for every stored card.
     record["confidence"] = _clamp_confidence(body.get("confidence"))
 
     def _write():

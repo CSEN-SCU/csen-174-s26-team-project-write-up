@@ -23,6 +23,14 @@ if str(_app_api) not in sys.path:
 
 from app import app
 
+AUTH_HEADERS = {"X-Debug-User": "user-1"}
+
+
+@pytest.fixture(autouse=True)
+def auth_bypass(monkeypatch):
+    monkeypatch.setenv("APP_AUTH_BYPASS", "1")
+    monkeypatch.setenv("APP_ENV", "test")
+
 
 @pytest.fixture
 def client():
@@ -72,7 +80,6 @@ def test_post_then_get_feedback_history_round_trip(client, mock_get_db):
     # As a writer, I save coaching feedback for a document and later open that document's history so I can see what was saved.
     # Arrange
     payload = {
-        "userId": "user-1",
         "docId": "doc-1",
         "cardId": "card-1",
         "category": "grammar",
@@ -80,8 +87,8 @@ def test_post_then_get_feedback_history_round_trip(client, mock_get_db):
     }
 
     with patch("routes.feedback_history.get_db", side_effect=mock_get_db):
-        # Action
-        post_res = client.post("/feedback-history", json=payload)
+        # Action (userId comes from @require_auth / X-Debug-User in tests)
+        post_res = client.post("/feedback-history", json=payload, headers=AUTH_HEADERS)
         # Assert
         assert post_res.status_code == 200
         post_body = post_res.get_json()
@@ -90,7 +97,7 @@ def test_post_then_get_feedback_history_round_trip(client, mock_get_db):
         assert isinstance(post_body.get("historyId"), str) and len(post_body["historyId"]) > 0
 
         # Action
-        get_res = client.get("/feedback-history?docId=doc-1")
+        get_res = client.get("/feedback-history?docId=doc-1", headers=AUTH_HEADERS)
         # Assert
         assert get_res.status_code == 200
         body = get_res.get_json()
@@ -114,7 +121,7 @@ def test_get_feedback_history_empty_collection(client, mock_get_db, firestore_ro
     firestore_rows.clear()
     with patch("routes.feedback_history.get_db", side_effect=mock_get_db):
         # Action
-        get_res = client.get("/feedback-history")
+        get_res = client.get("/feedback-history", headers=AUTH_HEADERS)
         # Assert
         assert get_res.status_code == 200
         body = get_res.get_json()
