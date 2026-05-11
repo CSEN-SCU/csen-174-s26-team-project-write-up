@@ -1,0 +1,21 @@
+# Week 6 — Sprint 1 Retro
+
+## Celebration
+
+Our team felt that we had very strong communication and planning throughout the first sprint on the project. We met up frequently to go over guidelines, iron out jobs, and generally ensure we were all on the same page. Our main goal for this sprint was to get our footing in the switch from individual prototypes to one main project and set up a good baseline product for all of us to work off of. The team did a great job getting all the initial parts into place and setting up all the baseline tools we’ll need moving forward. With the switch to simultaneous work on the same product, our first sprint was plagued by merge conflicts, but the team did a great job carefully resolving them and stepping up to help one another. In particular, Chris put in a ton of work to ensure the correct versions of all the files survived our merge conflicts. Catherine also put in a lot of work setting up the firewall this week. Cole also put in a lot of work developing the web app and making sure webpages like the User Profile and Feedback History were set up. Ishika also put in a lot of work, ensuring that the Chrome Extension was able to fetch text from Google Docs and helped build the basis of the MVP. Miranda also put in a lot of work as Scrum Coach, making sure we were all keeping up with our tasks, doing the write-ups and documenting files, and communicating regularly about upcoming deadlines.
+
+
+## AI Tools Reflection
+
+We noticed that setting up Jolli initially took some time, and it did not accurately display our GitHub page as expected. While it did scan our repo, it took some additional prompting for Jolli to generate helpful documentation. However, Cursor agents significantly helped with the execution side of the sprint. When we needed to quickly build components such as an MVP of our Chrome extension or web application, Cursor was able to follow concise instructions and generate functioning implementations in a short amount of time. For example, when asking Cursor to set up a Firebase database to store the user’s feedback history, Cursor was able to quickly generate a plan.md for us to follow and review. Cursor also helped us debug merge conflicts that otherwise would have taken more time researching, introducing us to commands like “git pull –rebase”. 
+
+At the same time, we found that AI tools sometimes overgeneralized or overcomplicated relatively simple tasks. For instance, when we prompted Cursor to create a basic unit test that checked whether user information, such as a name and reading level, could be retrieved, it instead generated a much more complex integration test that attempted to access the real database. Cursor also modified unrelated files and implemented changes solely to make the test pass. As a result, we spent additional time refining our prompts to clearly specify constraints, such as not editing existing files and keeping the tests lightweight even if they did not initially pass.
+
+
+## Sprint 2 Commitments
+
+1. Better communication and organization when it comes to making changes and executing pushes and pulls to avoid merge errors. To avoid this, team members working on connecting their sections of the code will meet in person and work through the connection together. Tasks to make these connections are assigned to multiple people on the KanBan as a reflection of this.
+KanBan Task: 'https://github.com/CSEN-SCU/csen-174-s26-team-project-write-up/issues/29' 
+
+2. More even distribution of work. This sprint, each person has more concrete solo work to accomplish, and we have people assisting or supervising in some of the bigger sections. That way, even if they don’t need to do the “hands on” coding right now, they’ll understand the system better, and be equipped to jump in later as needed. We plan to make the tasks each person has to do for Sprint 2 more clear and assign an equal amount of tasks for each person.
+KanBan Task: 'https://github.com/CSEN-SCU/csen-174-s26-team-project-write-up/issues/69' 
