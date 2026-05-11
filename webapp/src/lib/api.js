@@ -63,12 +63,23 @@ export const api = {
       fallback: { items: [], degraded: true, error: "offline" },
     }),
 
-  coach: (text, userId) =>
-    apiFetch("/coach", {
+  /**
+   * Proxied by app-api to coaching-api. Pass `Authorization: Bearer <idToken>` in
+   * headers when signed in. For local bypass, set VITE_DEBUG_APP_USER in `.env`
+   * to match app-api APP_AUTH_BYPASS (see root `.env.example`).
+   */
+  coach: (text, userId, { headers: extraHeaders = {} } = {}) => {
+    const debugUser = import.meta.env.VITE_DEBUG_APP_USER;
+    const bypass =
+      typeof debugUser === "string" && debugUser.trim()
+        ? { "X-Debug-User": debugUser.trim() }
+        : {};
+    return apiFetch("/coach", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...bypass, ...extraHeaders },
       body: JSON.stringify({ text, userId, surface: "web" }),
-    }),
+    });
+  },
 
   saveFeedback: (record) =>
     apiFetch("/api/feedback-history", {

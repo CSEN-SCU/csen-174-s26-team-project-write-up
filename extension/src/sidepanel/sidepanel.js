@@ -1,6 +1,13 @@
 ﻿const APP_API_BASE = "http://127.0.0.1:5050";
-const COACH_API_BASE = "http://127.0.0.1:8787";
 const DEFAULT_API_BASE = APP_API_BASE;
+
+function appApiJsonHeaders() {
+  const h = { "Content-Type": "application/json" };
+  if (/127\.0\.0\.1|localhost/i.test(APP_API_BASE)) {
+    h["X-Debug-User"] = "local-extension-user";
+  }
+  return h;
+}
 const WORD_BANK_DISPLAY_COUNT = 8;
 
 const homeLink = document.getElementById("home-link");
@@ -141,15 +148,15 @@ async function runFeedback() {
   }
 
   submitBtn.disabled = true;
-  statusLine.textContent = "Calling coaching-api…";
+  statusLine.textContent = "Calling app-api (coaching)…";
   output.textContent = "";
   output.classList.remove("is-error");
   outputMeta.textContent = "";
 
   try {
-    const res = await fetch(`${COACH_API_BASE}/coach`, {
+    const res = await fetch(`${APP_API_BASE}/coach`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: appApiJsonHeaders(),
       body: JSON.stringify({ text, focus }),
     });
     const data = await res.json().catch(() => ({}));
@@ -172,7 +179,7 @@ async function runFeedback() {
     output.classList.add("is-error");
     output.textContent =
       (e && e.message) ||
-      "Could not reach coaching-api at http://127.0.0.1:8787. Run `npm run dev:coach` from the repo root.";
+      "Could not reach app-api at http://127.0.0.1:5050 (coach proxy). Run `npm run dev:app` and `npm run dev:coach` from the repo root.";
     statusLine.textContent = "Network error";
   } finally {
     submitBtn.disabled = false;

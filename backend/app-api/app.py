@@ -13,6 +13,7 @@ from routes.feedback_history import bp as history_bp
 from routes.dismissals import bp as dismissals_bp
 from routes.preferences import bp as prefs_bp
 from routes.auth_google import bp as oauth_bp
+from routes.coach_proxy import bp as coach_proxy_bp
 
 logging.basicConfig(level=logging.INFO)
 
@@ -25,6 +26,7 @@ app.register_blueprint(history_bp)
 app.register_blueprint(dismissals_bp)
 app.register_blueprint(prefs_bp)
 app.register_blueprint(oauth_bp)
+app.register_blueprint(coach_proxy_bp)
 
 
 @app.errorhandler(ApiError)

@@ -12,7 +12,11 @@ export default defineConfig({
         rewrite: (p) => p.replace(/^\/api/, "")
       },
       "/coach": {
-        target: "http://127.0.0.1:8787",
+        target: "http://127.0.0.1:5050",
+        changeOrigin: true
+      },
+      "/dismiss": {
+        target: "http://127.0.0.1:5050",
         changeOrigin: true
       }
     }

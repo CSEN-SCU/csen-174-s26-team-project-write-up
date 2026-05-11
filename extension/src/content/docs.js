@@ -4,7 +4,15 @@
  * Supports direct DOM text mode and MCP bridge mode (doc_id only).
  */
 (function () {
-  const API_BASE = "http://127.0.0.1:8787";
+  const APP_API_BASE = "http://127.0.0.1:5050";
+
+  function appApiJsonHeaders() {
+    const h = { "Content-Type": "application/json" };
+    if (/127\.0\.0\.1|localhost/i.test(APP_API_BASE)) {
+      h["X-Debug-User"] = "local-extension-user";
+    }
+    return h;
+  }
   const DEBOUNCE_MS = 2800;
   const MIN_CHARS = 72;
   const MIN_FETCH_GAP_MS = 3500;
@@ -72,9 +80,9 @@
   }
 
   async function callFeedback(payload) {
-    const res = await fetch(`${API_BASE}/coach`, {
+    const res = await fetch(`${APP_API_BASE}/coach`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: appApiJsonHeaders(),
       body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
