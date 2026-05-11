@@ -8,7 +8,11 @@ After this workflow lands on `main`, open the repository’s **Pull requests** t
 
 ## Secrets Handling
 
-We store LLM provider credentials only in GitHub **Settings → Secrets and variables → Actions**, never in source or workflow literals. Repository secrets `OPENAI_API_KEY` and `GROQ_API_KEY` are passed into the test job with `${{ secrets.OPENAI_API_KEY }}` and `${{ secrets.GROQ_API_KEY }}`, which mirrors how `backend/coaching-api` reads those names at runtime. CI needs them only if a job step actually calls the providers; the current W5 Vitest run is unit-level, so missing secrets resolve to empty strings and tests still pass. Deployment environments (for example Fly, Railway, or Azure) keep their own copies of the same variable names in that host’s secret manager so production traffic never relies on GitHub’s store.
+Configuration falls into two groups. **Public client configuration** (used in the browser bundle) includes standard Firebase web app settings—project ID, auth domain, storage bucket, messaging sender ID, measurement ID, app ID, and related identifiers—which are not treated as confidential in Firebase’s client model. **Confidential credentials** stay on the server: the Google OAuth **client secret** (distinct from the public client ID), the Firebase **service account** material for privileged server access, and third-party API keys such as Groq.
+
+**CI** supplies non-secret and public build-time variables the frontend needs to compile and run against the right Firebase project and OAuth client, using repository or workflow secrets so values are not committed or echoed in logs. **Deployment** provides confidential material to backend or serverless runtimes—typically via environment variables, secret manager references, or mounted secret files—so the service account JSON and API keys never ship to the client.
+
+The apps read these values from the environment at build or startup (for example `process.env` in Node-based tooling), so nothing sensitive is hardcoded in source; only the server tier receives credentials that must not appear in client-side JavaScript.
 
 ## Live URL
 
@@ -16,6 +20,7 @@ We store LLM provider credentials only in GitHub **Settings → Secrets and vari
 
 ## Deployment Screenshots
 
-
+![Deployment screenshot](images/image.png)
 
 ## Platfrom Decisions
+We choose Vercel because it makes deploying web applications extremely fast and simple, especially for frameworks like React (which we are using). It abstracts away a lot of infrastructure work like scaling, server configuration, and global content delivery so developers can focus on building features instead of managing servers. Its platform automatically optimizes performance with edge networks, instant rollbacks, and seamless CI/CD from Git repositories, which helps teams ship updates quickly and safely. This combination of developer experience, built-in performance optimization, and tight integration with modern frontend tooling has made it a go-to choice for building and hosting high-performance web apps.
