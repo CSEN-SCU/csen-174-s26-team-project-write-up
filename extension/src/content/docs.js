@@ -121,7 +121,10 @@
       lastFetchAt = now;
       lastDigest = digest;
       inFlight = true;
-      updateLiveState({ liveDocsStatus: useMcp ? "Calling MCP bridgeâ€¦" : "Calling local feedbackâ€¦", liveDocsDocId: docId });
+      updateLiveState({
+        liveDocsStatus: useMcp ? "Calling MCP bridge…" : "Calling local feedback…",
+        liveDocsDocId: docId,
+      });
 
       callFeedback({
         text,
@@ -130,7 +133,14 @@
         use_mcp: useMcp,
         doc_id: docId,
       })
-        .then((data) => {
+        .then(async (data) => {
+          if (typeof writeUpPersistCoachSuggestions === "function" && docId) {
+            try {
+              await writeUpPersistCoachSuggestions(APP_API_BASE, appApiJsonHeaders(), docId, data);
+            } catch (_) {
+              /* non-fatal: live feedback still shown */
+            }
+          }
           updateLiveState({
             liveDocsStatus: `Updated (${data.source || "text"})`,
             liveDocsFeedback: data.feedback || "",

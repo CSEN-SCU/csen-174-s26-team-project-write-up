@@ -58,10 +58,17 @@ export async function apiFetch(path, options = {}) {
 export const api = {
   me: () => apiFetch("/api/users/me", { fallback: null }),
 
-  history: (docId) =>
-    apiFetch(`/api/feedback-history?docId=${encodeURIComponent(docId ?? "")}`, {
+  history: (docId, { headers: extraHeaders = {} } = {}) => {
+    const debugUser = import.meta.env.VITE_DEBUG_APP_USER;
+    const bypass =
+      typeof debugUser === "string" && debugUser.trim()
+        ? { "X-Debug-User": debugUser.trim() }
+        : {};
+    return apiFetch(`/api/feedback-history?docId=${encodeURIComponent(docId ?? "")}`, {
+      headers: { ...bypass, ...extraHeaders },
       fallback: { items: [], degraded: true, error: "offline" },
-    }),
+    });
+  },
 
   /**
    * Proxied by app-api to coaching-api. Pass `Authorization: Bearer <idToken>` in
@@ -81,10 +88,16 @@ export const api = {
     });
   },
 
-  saveFeedback: (record) =>
-    apiFetch("/api/feedback-history", {
+  saveFeedback: (record, { headers: extraHeaders = {} } = {}) => {
+    const debugUser = import.meta.env.VITE_DEBUG_APP_USER;
+    const bypass =
+      typeof debugUser === "string" && debugUser.trim()
+        ? { "X-Debug-User": debugUser.trim() }
+        : {};
+    return apiFetch("/api/feedback-history", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...bypass, ...extraHeaders },
       body: JSON.stringify(record),
-    }),
+    });
+  },
 };

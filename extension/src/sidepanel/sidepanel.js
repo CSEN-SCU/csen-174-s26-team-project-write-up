@@ -91,12 +91,27 @@ function renderLiveStatus(statusText, updatedAt) {
   docsLiveStatus.textContent = bits.join(" · ");
 }
 
+/** Map Firestore feedback_history row or legacy {from,to} into a word-bank pair. */
+function wordBankPairFromItem(item) {
+  if (!item) return null;
+  const legacyFrom = String(item.from || "").trim();
+  const legacyTo = String(item.to || "").trim();
+  if (legacyFrom && legacyTo) return { from: legacyFrom, to: legacyTo };
+  const issue = String(item.issue || "").trim();
+  const fixes = Array.isArray(item.fixOptions) ? item.fixOptions : [];
+  const to = String(fixes[0] || "").trim() || String(item.why || "").trim().slice(0, 200);
+  if (!issue && !to) return null;
+  return { from: issue || "Tip", to: to || "—" };
+}
+
 function pickRandomPairs(items, count) {
   const unique = [];
   const seen = new Set();
   for (const item of items || []) {
-    const from = String(item?.from || "").trim();
-    const to = String(item?.to || "").trim();
+    const pair = wordBankPairFromItem(item);
+    if (!pair) continue;
+    const from = pair.from;
+    const to = pair.to;
     const key = `${from.toLowerCase()}=>${to.toLowerCase()}`;
     if (!from || !to || seen.has(key)) continue;
     seen.add(key);
@@ -174,8 +189,22 @@ async function runFeedback() {
     if (typeof data.vocabulary_pairs_saved === "number" && data.vocabulary_pairs_saved > 0) {
       metaParts.push(`Saved ${data.vocabulary_pairs_saved} vocab pair(s)`);
     }
-    outputMeta.textContent = metaParts.join(" · ");
-    statusLine.textContent = "Done";
+    if (outputMeta) outputMeta.textContent = metaParts.join(" · ");
+    let persistMsg = "";
+    if (typeof writeUpPersistCoachSuggestions === "function") {
+      try {
+        const { saved, total } = await writeUpPersistCoachSuggestions(
+          APP_API_BASE,
+          appApiJsonHeaders(),
+          "active",
+          data,
+        );
+        if (total > 0) persistMsg = ` · Saved ${saved}/${total} to history`;
+      } catch (_) {
+        persistMsg = " · History save skipped";
+      }
+    }
+    statusLine.textContent = `Done${persistMsg}`;
     await loadWordBank();
   } catch (e) {
     output.classList.add("is-error");

@@ -1,28 +1,11 @@
-﻿import { useState } from "react";
+﻿import { useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { api } from "../lib/api";
+import { useApi } from "../lib/useApi";
 
 const TAB_CORRECTIONS = "corrections";
 const TAB_LEAVE_AS_WRITTEN = "leaveAsWritten";
 
-const DEMO_PAIRS = [
-  {
-    correction: "They're going to the store tomorrow.",
-    mistake: "Their going to the store tomorrow.",
-  },
-  {
-    correction: "It's a beautiful day.",
-    mistake: "Its a beautiful day.",
-  },
-  {
-    correction: "She should have gone earlier.",
-    mistake: "She should of gone earlier.",
-  },
-  {
-    correction: "Who left this here?",
-    mistake: "Whom left this here?",
-  },
-];
-
-/** Demo rows: system suggestion the user dismissed—won't be recommended again. */
 const DEMO_LEAVE_AS_WRITTEN_PAIRS = [
   {
     correction: 'Treat "data" as plural: "The data are conclusive."',
@@ -42,44 +25,56 @@ const DEMO_LEAVE_AS_WRITTEN_PAIRS = [
   },
 ];
 
+function mapFirestoreRow(raw, idx) {
+  const cardId = raw.cardId ?? "card";
+  const createdAt = raw.createdAt ?? "";
+  const doc = raw.docId ?? "";
+  const id = `${doc}-${cardId}-${createdAt}-${idx}`;
+  const mistake = String(raw.issue || "").trim() || "(untitled)";
+  const fixes = Array.isArray(raw.fixOptions) ? raw.fixOptions : [];
+  const correction = String(fixes[0] || "").trim() || String(raw.why || "").trim() || "—";
+  return { id, mistake, correction };
+}
+
 export default function History() {
-  const [items, setItems] = useState([]);
+  const [searchParams] = useSearchParams();
+  const docId = searchParams.get("docId") || "active";
+
+  const { data, loading, error, retry } = useApi(
+    useCallback(() => api.history(docId), [docId]),
+    [docId],
+  );
+
+  const correctionRows = useMemo(() => {
+    const items = (data && Array.isArray(data.items) && data.items) || [];
+    return items.map(mapFirestoreRow);
+  }, [data]);
+
   const [leaveAsWrittenItems, setLeaveAsWrittenItems] = useState([]);
   const [activeTab, setActiveTab] = useState(TAB_CORRECTIONS);
 
-  function addItem() {
-    if (activeTab === TAB_CORRECTIONS) {
-      setItems((prev) => {
-        const pair = DEMO_PAIRS[prev.length % DEMO_PAIRS.length];
-        return [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            correction: pair.correction,
-            mistake: pair.mistake,
-          },
-        ];
-      });
-    } else {
-      setLeaveAsWrittenItems((prev) => {
-        const pair = DEMO_LEAVE_AS_WRITTEN_PAIRS[prev.length % DEMO_LEAVE_AS_WRITTEN_PAIRS.length];
-        return [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            correction: pair.correction,
-            mistake: pair.mistake,
-          },
-        ];
-      });
-    }
+  function addDemoLeaveAsWritten() {
+    setLeaveAsWrittenItems((prev) => {
+      const pair = DEMO_LEAVE_AS_WRITTEN_PAIRS[prev.length % DEMO_LEAVE_AS_WRITTEN_PAIRS.length];
+      return [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          correction: pair.correction,
+          mistake: pair.mistake,
+        },
+      ];
+    });
   }
 
-  const listForTab = activeTab === TAB_CORRECTIONS ? items : leaveAsWrittenItems;
+  const listForTab = activeTab === TAB_CORRECTIONS ? correctionRows : leaveAsWrittenItems;
   const listAriaLabel =
     activeTab === TAB_CORRECTIONS ? "Correction history entries" : "Leave as written entries";
   const tabPanelLabelledBy =
     activeTab === TAB_CORRECTIONS ? "history-tab-corrections" : "history-tab-leave";
+
+  const degraded = Boolean(data?.degraded);
+  const emptyCorrections = activeTab === TAB_CORRECTIONS && correctionRows.length === 0 && !loading;
 
   return (
     <section className="page history-page">
@@ -88,14 +83,29 @@ export default function History() {
           <div className="history-page__heading">
             <p className="dashboard__eyebrow">Feedback timeline</p>
             <h2 className="history-page__title">History</h2>
+            <p className="history-page__docid" style={{ marginTop: "0.35rem", opacity: 0.85 }}>
+              Document: <code>{docId}</code> · add <code>?docId=</code> to match a Google Doc id or
+              use <code>active</code> for side-panel sessions.
+            </p>
           </div>
-          <button
-            type="button"
-            className="history-page__add-btn dashboard__btn dashboard__btn--primary"
-            onClick={addItem}
-          >
-            Add entry
-          </button>
+          {activeTab === TAB_LEAVE_AS_WRITTEN ? (
+            <button
+              type="button"
+              className="history-page__add-btn dashboard__btn dashboard__btn--primary"
+              onClick={addDemoLeaveAsWritten}
+            >
+              Add demo entry
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="history-page__add-btn dashboard__btn dashboard__btn--ghost"
+              onClick={() => retry()}
+              disabled={loading}
+            >
+              Refresh
+            </button>
+          )}
         </header>
 
         <div className="history-page__tabs" role="tablist" aria-label="History categories">
@@ -131,60 +141,66 @@ export default function History() {
           </button>
         </div>
 
-        <div className="dashboard__ribbon" aria-hidden="true">
-          <span>Placeholder rows · Wired to demo data until App API feeds this view</span>
-        </div>
-        <p className="history-page__note">
-          TODO WEB-3: render feedback history from App API.
-        </p>
+        {activeTab === TAB_CORRECTIONS && error && (
+          <p className="history-page__note" role="alert">
+            Could not load history ({error.code || error.message}). Set{" "}
+            <code>VITE_DEBUG_APP_USER</code> for local app-api bypass, or sign in with Firebase.
+          </p>
+        )}
+        {degraded && (
+          <p className="history-page__note">Showing empty history (offline or server unavailable).</p>
+        )}
+
         <p className="history-page__hint">
-          The &ldquo;Add entry&rdquo; button adds a sample row to whichever tab is open. The
-          &ldquo;Leave as written&rdquo; list is for wording you do not want suggested edits for
-          again.
+          <strong>Correction history</strong> lists suggestions saved from the extension after each
+          coach run. <strong>Leave as written</strong> is still a local demo until dismissals are
+          stored in app-api.
         </p>
-        <div
-          id="history-tabpanel"
-          role="tabpanel"
-          aria-labelledby={tabPanelLabelledBy}
-        >
-          <div className="history-page__container" role="list" aria-label={listAriaLabel}>
-            {listForTab.length === 0 ? (
-              <p className="history-page__empty">
-                {activeTab === TAB_CORRECTIONS ? (
-                  <>
-                    No entries yet. Use &ldquo;Add entry&rdquo; to add sample corrections and
-                    mistakes.
-                  </>
-                ) : (
-                  <>
-                    Nothing here yet. When you tell the coach not to change a phrase, those choices
-                    will appear so the system stops recommending the same fix.
-                  </>
-                )}
-              </p>
-            ) : (
-              listForTab.map((item) => (
-                <div
-                  key={item.id}
-                  className="history-page__item history-page__split"
-                  role="listitem"
-                >
-                  <div className="history-page__correction">
-                    <span className="history-page__col-label">
-                      {activeTab === TAB_CORRECTIONS ? "Correction" : "Suggested change"}
-                    </span>
-                    <p className="history-page__col-text">{item.correction}</p>
+
+        <div id="history-tabpanel" role="tabpanel" aria-labelledby={tabPanelLabelledBy}>
+          {activeTab === TAB_CORRECTIONS && loading ? (
+            <p className="history-page__empty">Loading…</p>
+          ) : (
+            <div className="history-page__container" role="list" aria-label={listAriaLabel}>
+              {listForTab.length === 0 ? (
+                <p className="history-page__empty">
+                  {activeTab === TAB_CORRECTIONS ? (
+                    <>
+                      {emptyCorrections
+                        ? "No saved suggestions for this document yet. Run “Get feedback” in the extension; entries appear here automatically."
+                        : null}
+                    </>
+                  ) : (
+                    <>
+                      Nothing here yet. When you tell the coach not to change a phrase, those
+                      choices will appear so the system stops recommending the same fix.
+                    </>
+                  )}
+                </p>
+              ) : (
+                listForTab.map((item) => (
+                  <div
+                    key={item.id}
+                    className="history-page__item history-page__split"
+                    role="listitem"
+                  >
+                    <div className="history-page__correction">
+                      <span className="history-page__col-label">
+                        {activeTab === TAB_CORRECTIONS ? "Suggestion / fix" : "Suggested change"}
+                      </span>
+                      <p className="history-page__col-text">{item.correction}</p>
+                    </div>
+                    <div className="history-page__mistake">
+                      <span className="history-page__col-label">
+                        {activeTab === TAB_CORRECTIONS ? "Observation" : "Your text (kept)"}
+                      </span>
+                      <p className="history-page__col-text">{item.mistake}</p>
+                    </div>
                   </div>
-                  <div className="history-page__mistake">
-                    <span className="history-page__col-label">
-                      {activeTab === TAB_CORRECTIONS ? "Mistake" : "Your text (kept)"}
-                    </span>
-                    <p className="history-page__col-text">{item.mistake}</p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
     </section>

@@ -22,7 +22,7 @@
     },
     {
       "matches": ["https://docs.google.com/document/*"],
-      "js": ["src/content/docs.js"],
+      "js": ["src/sidepanel/persist-feedback.js", "src/content/docs.js"],
       "run_at": "document_idle"
     }
   ],

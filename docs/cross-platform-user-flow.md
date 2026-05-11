@@ -41,17 +41,14 @@ Persisting a loop closure: **`POST /feedback-history`** requires `docId` plus ca
 2. Client sends `POST {APP_API_BASE}/coach` with JSON body (`text`, `focus`, …) and auth headers (Bearer or dev `X-Debug-User` per environment).
 3. App-api verifies identity, sets `userId`, forwards to coaching-api, returns structured coaching (`suggestions` / `feedback` string, etc.).
 4. Writer reads feedback in the panel; **word bank** loads prior saved items via `GET /feedback-history?docId=active` (same auth headers as coach in local dev).
-
-**Feedback loop (target):** when the writer accepts or saves a specific suggestion, the client should **`POST /feedback-history`** with the real **`docId`** (once available) so the **webapp History** and future analytics show the same event. Today the side panel does not automatically persist each coach response to Firestore; that step is the explicit **close-the-loop** integration.
+5. After each successful coach response, the extension **`POST`s one `feedback-history` row per suggestion** (same `docId`: `active` in the side panel, or the Google **document id** in live Docs) so the **webapp History** view (`/history?docId=…`) stays in sync.
 
 ### Flow B — “Live coach while I write in Google Docs”
 
 1. Writer enables live coaching in the side panel (persists `docsLiveEnabled` and `docsLiveFocus` in `chrome.storage.local`).
 2. Content script on the Doc tab observes edits (debounced), extracts text (or MCP path with `doc_id` only).
 3. Script calls `POST /coach` on app-api with payload including `doc_id`, `text` (if not MCP), `focus`, and flags such as `live: true`.
-4. On success, summary feedback text is written to `chrome.storage.local` (`liveDocsFeedback`, `liveDocsStatus`); the side panel listens and displays it.
-
-**Feedback loop:** live coaching updates **coaching-api profile** on the server for that `userId`; **Firestore history** still only updates when the product **`POST`s feedback-history** (e.g. user pins a tip or dismisses into app-owned dismissals once implemented). Treat **two stores** deliberately: coaching profile (Node) vs durable history (Firebase).
+4. On success, feedback text is written to `chrome.storage.local`; the script **`POST`s each suggestion to `feedback-history`** using the Doc’s id so **History** in the webapp can filter by the same `docId`.
 
 ### Flow C — “Reflect and manage account on the web”
 
@@ -87,6 +84,8 @@ sequenceDiagram
   A->>C: Forward coach JSON
   C-->>A: Coaching payload
   A-->>D: Response
+  D->>A: POST /feedback-history (each suggestion)
+  A->>F: Write rows
   D->>P: storage sync (live status / feedback)
 
   W->>P: Submit draft coach
@@ -94,17 +93,14 @@ sequenceDiagram
   A->>C: Forward
   C-->>A: Coaching payload
   A-->>P: Response
+  P->>A: POST /feedback-history (each suggestion)
+  A->>F: Write rows
 
   W->>WA: Open history / profile
   WA->>A: GET feedback-history, preferences, users/me
   A->>F: Read collections
   F-->>A: Documents
   A-->>WA: JSON
-
-  Note over W,F: Close loop: POST /feedback-history with shared docId + card fields
-  W->>WA: Save or acknowledge card (future / partial)
-  WA->>A: POST /feedback-history
-  A->>F: Write feedback_history
 ```
 
 ---
@@ -123,7 +119,6 @@ sequenceDiagram
 |------|--------|
 | Webapp Firebase sign-in + Bearer on all calls | Partially scaffolded (`webapp/src/lib/firebase.js`); coach/history need consistent headers |
 | Extension production auth | Still local `X-Debug-User`; needs ID token path aligned with webapp |
-| Auto-`POST /feedback-history` after coach | Not wired in extension/docs; loop requires explicit client or server rule |
 | `POST /dismissals` (Firestore) | Stub 501 |
 | `POST /auth/google`, onboarding | Stub 501 |
 
