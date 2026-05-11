@@ -129,7 +129,9 @@ function renderWordBank(items) {
 async function loadWordBank() {
   const base = APP_API_BASE;
   try {
-    const res = await fetch(`${base}/feedback-history?docId=active`);
+    const res = await fetch(`${base}/feedback-history?docId=active`, {
+      headers: appApiJsonHeaders(),
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return renderWordBank([]);
     renderWordBank(Array.isArray(data.items) ? data.items : []);
