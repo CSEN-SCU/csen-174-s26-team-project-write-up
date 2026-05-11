@@ -34,8 +34,8 @@ def test_history_jsx_can_add_demo_entries_to_local_list():
 
     assert 'role="list"' in src and "history-page__container" in src
     assert 'role="listitem"' in src
-    assert "items.map((item)" in src
+    assert "items.map((item)" in src or "listForTab.map((item)" in src
     assert "{item.correction}" in src
     assert "{item.mistake}" in src
-    assert "items.length === 0" in src
+    assert "items.length === 0" in src or "listForTab.length === 0" in src
     assert "history-page__empty" in src
