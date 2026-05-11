@@ -104,3 +104,5 @@ flowchart TD
 - MVP flow: extension + web app + split APIs + shared Firebase data layer.
 - Stretch goals are represented as `(future)` behavior inside existing containers, not extra boxes.
 - Recommended evolution path: add an async profile worker later if reassessment/pruning workloads grow.
+
+**See also:** [cross-platform user flow spec](cross-platform-user-flow.md) (Docs ↔ webapp ↔ feedback loop).
