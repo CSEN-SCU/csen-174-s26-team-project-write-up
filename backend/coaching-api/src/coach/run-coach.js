@@ -21,16 +21,11 @@ const RAG_TOP_K = Math.max(1, Math.min(24, Number(process.env.RAG_TOP_K || 8)));
 
 /**
  * @param {object} body
- * @param {string} [body.text]
- * @param {string} [body.userId]
- * @param {string} [body.surface]
- * @param {string} [body.coachMode]
- * @param {string[]} [body.focus]
- * @param {string} [body.goals]
- * @param {string} [body.audience]
- * @param {"formal"|"neutral"|"casual"} [body.tonePreference]
+ * @param {{ requestId?: string }} [meta] from HTTP `X-Request-Id` (e.g. app-api) for log correlation with `[coach-llm]`
  */
-export async function runCoach(body) {
+export async function runCoach(body, meta = {}) {
+  const requestId =
+    typeof meta.requestId === "string" && meta.requestId.trim() ? meta.requestId.trim() : undefined;
   const {
     text,
     userId: rawUserId,
@@ -95,6 +90,7 @@ export async function runCoach(body) {
   const heur = heuristicSuggestions(trimmed, coachMode);
   let llmCards = [];
   let modelUsed = null;
+  const llmLogContext = { requestId, userId };
   const attempts = resolveCoachLlmAttempts();
   for (const cfg of attempts) {
     try {
@@ -107,6 +103,7 @@ export async function runCoach(body) {
         coachMode,
         focus,
         personalization,
+        llmLogContext,
       );
       if (Array.isArray(ai) && ai.length) {
         llmCards = ai;

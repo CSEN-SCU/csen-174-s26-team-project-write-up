@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -32,10 +34,40 @@ def _timeout_s() -> float:
         return 120.0
 
 
+def _coach_proxy_log_enabled() -> bool:
+    v = os.environ.get("APP_COACH_PROXY_LOG", "").lower().strip()
+    return v in ("1", "true", "yes", "y", "on")
+
+
+def _log_coach_proxy_access(
+    *,
+    request_id: str,
+    path: str,
+    upstream_status: int,
+    duration_ms: float,
+) -> None:
+    if not _coach_proxy_log_enabled():
+        return
+    uid = getattr(g, "user_id", None)
+    line = json.dumps(
+        {
+            "t": datetime.now(timezone.utc).isoformat(),
+            "event": "coach_proxy_upstream",
+            "requestId": request_id,
+            "path": path,
+            "upstreamStatus": upstream_status,
+            "durationMs": round(duration_ms, 2),
+            "userId": uid,
+        },
+        separators=(",", ":"),
+    )
+    log.info("[coach-proxy] %s", line)
+
+
 def _forward_post(path: str, payload: dict[str, Any]) -> tuple[Any, int]:
     base = _coaching_base_url()
     url = f"{base}{path}"
-    rid = request.headers.get("X-Request-Id") or str(uuid.uuid4())
+    rid = (request.headers.get("X-Request-Id") or "").strip() or str(uuid.uuid4())
     body_bytes = json.dumps(payload).encode("utf-8")
     req = Request(
         url,
@@ -48,6 +80,7 @@ def _forward_post(path: str, payload: dict[str, Any]) -> tuple[Any, int]:
         method="POST",
     )
     timeout = _timeout_s()
+    t0 = time.perf_counter()
     try:
         with urlopen(req, timeout=timeout) as resp:  # noqa: S310 - URL from env, not user input
             raw = resp.read().decode("utf-8")
@@ -56,18 +89,43 @@ def _forward_post(path: str, payload: dict[str, Any]) -> tuple[Any, int]:
         raw = e.read().decode("utf-8", errors="replace") if e.fp else ""
         status = int(e.code or 502)
     except TimeoutError as e:
-        log.warning("Coaching upstream timeout url=%s", url)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log.warning(
+            "Coaching upstream timeout url=%s request_id=%s duration_ms=%.2f",
+            url,
+            rid,
+            elapsed_ms,
+        )
         raise ApiError("coaching_timeout", 504, "Coaching service timed out") from e
     except URLError as e:
-        log.warning("Coaching upstream unreachable url=%s err=%s", url, e)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log.warning(
+            "Coaching upstream unreachable url=%s err=%s request_id=%s duration_ms=%.2f",
+            url,
+            e,
+            rid,
+            elapsed_ms,
+        )
         raise ApiError("coaching_upstream", 502, "Coaching service unreachable") from e
 
     try:
         data = json.loads(raw) if raw else {}
     except json.JSONDecodeError:
-        log.warning("Coaching non-JSON status=%s preview=%s", status, raw[:240])
+        log.warning(
+            "Coaching non-JSON status=%s preview=%s request_id=%s",
+            status,
+            raw[:240],
+            rid,
+        )
         raise ApiError("coaching_bad_response", 502, "Invalid JSON from coaching service")
 
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+    _log_coach_proxy_access(
+        request_id=rid,
+        path=path,
+        upstream_status=status,
+        duration_ms=elapsed_ms,
+    )
     return data, status
 
 

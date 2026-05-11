@@ -31,7 +31,7 @@ These routes require a **Firebase ID token** (`Authorization: Bearer <id_token>`
 ## App API → Coaching API (server-to-server)
 - Base URL: **`COACHING_API_BASE_URL`** on app-api (default `http://127.0.0.1:8787`; see root `.env.example` and `backend/app-api/.env.example`).
 - Method: **`POST`** to `/coach` or `/dismiss` with `Content-Type: application/json`, `Accept: application/json`.
-- **`X-Request-Id`**: forwarded from the client request when present; otherwise app-api generates one for the upstream call.
+- **`X-Request-Id`**: forwarded from the client request when present; otherwise app-api generates one for the upstream call. Coaching-api threads this into opt-in **`COACH_LOG_LLM`** stderr JSON (`requestId` field) so logs align with app-api **`APP_COACH_PROXY_LOG`** lines (`[coach-proxy]` / `[coach-llm]`); see `backend/app-api/README.md`.
 - Response: app-api returns coaching-api’s JSON body and HTTP status when the upstream response is JSON; network/timeout/non-JSON failures map to app-api errors (`coaching_upstream`, `coaching_timeout`, `coaching_bad_response`).
 
 ## Clients (webapp, extension)

@@ -48,7 +48,8 @@ app.get("/health", (_req, res) => {
 
 app.post("/coach", async (req, res) => {
   try {
-    const result = await runCoach(req.body || {});
+    const requestId = String(req.get("x-request-id") || "").trim() || undefined;
+    const result = await runCoach(req.body || {}, { requestId });
     if (result.error) {
       return res.status(result.status || 400).json({ error: result.error });
     }

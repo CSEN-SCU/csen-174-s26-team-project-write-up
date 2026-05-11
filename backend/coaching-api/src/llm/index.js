@@ -142,6 +142,7 @@ export function resolveCoachLlmAttempts() {
  * @param {"typing"|"paused"} coachMode
  * @param {string[]} [focus]
  * @param {{ goals?: string, audience?: string, tonePreference?: "formal"|"neutral"|"casual" }} [personalization]
+ * @param {{ requestId?: string, userId?: string }} [logContext] correlated with app-api `X-Request-Id` when proxied
  */
 export async function coachWithChatCompletions(
   text,
@@ -152,6 +153,7 @@ export async function coachWithChatCompletions(
   coachMode = "paused",
   focus = [],
   personalization = {},
+  logContext = {},
 ) {
   const { system, user } = coachMessages(
     text,
@@ -165,8 +167,14 @@ export async function coachWithChatCompletions(
   const previewLimit = coachLogLlmPreviewLimit();
   const temperature = coachMode === "typing" ? 0.22 : 0.4;
 
+  const logBase = {
+    ...(logContext.requestId ? { requestId: logContext.requestId } : {}),
+    ...(logContext.userId ? { userId: logContext.userId } : {}),
+  };
+
   if (coachLogLlmEnabled()) {
     coachLlmLog("request", {
+      ...logBase,
       provider: cfg.id,
       model: cfg.model,
       coachMode,
@@ -199,6 +207,7 @@ export async function coachWithChatCompletions(
     const safe = redactSecrets(errRaw);
     if (coachLogLlmEnabled()) {
       coachLlmLog("http_error", {
+        ...logBase,
         provider: cfg.id,
         model: cfg.model,
         status: res.status,
@@ -216,6 +225,7 @@ export async function coachWithChatCompletions(
   } catch (e) {
     if (coachLogLlmEnabled()) {
       coachLlmLog("parse_error", {
+        ...logBase,
         provider: cfg.id,
         model: cfg.model,
         message: e instanceof Error ? e.message : String(e),
@@ -229,6 +239,7 @@ export async function coachWithChatCompletions(
 
   if (coachLogLlmEnabled()) {
     coachLlmLog("response", {
+      ...logBase,
       provider: cfg.id,
       model: cfg.model,
       messageChars: raw.length,
