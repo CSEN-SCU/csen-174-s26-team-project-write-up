@@ -1,21 +1,38 @@
 ﻿import { useState } from "react";
+import { ApiError, api } from "../lib/api";
 
 export default function Onboarding() {
   const [draft, setDraft] = useState("");
   const [ack, setAck] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [apiErr, setApiErr] = useState(null);
 
   const trimmed = draft.trim();
   const canSubmit = trimmed.length > 0;
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     if (!canSubmit) return;
+    setApiErr(null);
+    setSubmitting(true);
     const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
-    setAck({
-      words: wordCount,
-      preview:
-        "This is a layout-only response. Later, your coach will estimate writing level from samples like this and ask what you want help with (grammar, clarity, citations, and more).",
-    });
+    try {
+      await api.submitOnboarding({ writingSample: trimmed });
+      setAck({
+        words: wordCount,
+        preview:
+          "Saved to your account. Coaching and history will use this sample context as we add richer scoring.",
+      });
+    } catch (err) {
+      const msg =
+        err instanceof ApiError
+          ? `${err.code}${err.status ? ` (${err.status})` : ""}`
+          : err?.message || String(err);
+      setApiErr(msg);
+      setAck(null);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -23,15 +40,17 @@ export default function Onboarding() {
       <div className="dashboard__inner dashboard__inner--wide">
         <header className="onboarding-page__header">
           <p className="dashboard__eyebrow">Calibration write</p>
-          <h2 id="onboarding-title" className="onboarding-page__title">Onboarding</h2>
+          <h2 id="onboarding-title" className="onboarding-page__title">
+            Onboarding
+          </h2>
           <p className="onboarding-page__lede">
             Write a short passage in your own voice—about your day, an idea you care about, or a draft you are working on.
-            This sample will help gauge your writing level and what you want the system to focus on when it suggests edits.
+            This sample is stored on your Write Up profile (Firestore) when you submit.
           </p>
         </header>
 
         <div className="dashboard__ribbon" aria-hidden="true">
-          <span>Preview only · No scoring or API call yet</span>
+          <span>Requires app-api · Sign in from the top bar or set VITE_DEBUG_APP_USER for local bypass</span>
         </div>
 
         <form className="onboarding-page__form" onSubmit={handleSubmit} aria-labelledby="onboarding-title">
@@ -46,24 +65,30 @@ export default function Onboarding() {
             onChange={(e) => {
               setDraft(e.target.value);
               setAck(null);
+              setApiErr(null);
             }}
             placeholder="Type or paste a few sentences here…"
             aria-describedby="onboarding-hint"
           />
           <p id="onboarding-hint" className="onboarding-page__hint">
-            Submit is enabled once there is some text. There is no timer in this mock—just enough to see how the page
-            could feel.
+            Submit is enabled once there is some text. Your sample is sent to <code>POST /onboarding</code> on app-api.
           </p>
 
           <div className="onboarding-page__actions">
             <button
               type="submit"
               className="onboarding-page__submit dashboard__btn dashboard__btn--primary"
-              disabled={!canSubmit}
+              disabled={!canSubmit || submitting}
             >
-              Submit sample
+              {submitting ? "Saving…" : "Submit sample"}
             </button>
           </div>
+
+          {apiErr ? (
+            <p className="onboarding-page__status" role="alert">
+              Could not save: {apiErr}
+            </p>
+          ) : null}
 
           {ack ? (
             <p className="onboarding-page__status" role="status">

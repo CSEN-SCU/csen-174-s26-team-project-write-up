@@ -18,6 +18,10 @@ export default defineConfig({
       "/dismiss": {
         target: "http://127.0.0.1:5050",
         changeOrigin: true
+      },
+      "/auth": {
+        target: "http://127.0.0.1:5050",
+        changeOrigin: true
       }
     }
   }

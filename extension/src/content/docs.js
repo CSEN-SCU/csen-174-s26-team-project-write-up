@@ -5,8 +5,12 @@
  */
 (function () {
   const APP_API_BASE = "http://127.0.0.1:5050";
+  globalThis.writeUpApiBaseForDebug = APP_API_BASE;
 
-  function appApiJsonHeaders() {
+  async function coachHeaders() {
+    if (typeof globalThis.writeUpBuildApiHeaders === "function") {
+      return globalThis.writeUpBuildApiHeaders();
+    }
     const h = { "Content-Type": "application/json" };
     if (/127\.0\.0\.1|localhost/i.test(APP_API_BASE)) {
       h["X-Debug-User"] = "local-extension-user";
@@ -80,9 +84,10 @@
   }
 
   async function callFeedback(payload) {
+    const headers = await coachHeaders();
     const res = await fetch(`${APP_API_BASE}/coach`, {
       method: "POST",
-      headers: appApiJsonHeaders(),
+      headers,
       body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
@@ -136,7 +141,7 @@
         .then(async (data) => {
           if (typeof writeUpPersistCoachSuggestions === "function" && docId) {
             try {
-              await writeUpPersistCoachSuggestions(APP_API_BASE, appApiJsonHeaders(), docId, data);
+              await writeUpPersistCoachSuggestions(APP_API_BASE, null, docId, data);
             } catch (_) {
               /* non-fatal: live feedback still shown */
             }

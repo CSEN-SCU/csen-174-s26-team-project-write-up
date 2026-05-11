@@ -6,6 +6,11 @@
 - displayName
 - createdAt
 - updatedAt
+- onboardingComplete (boolean, when `POST /onboarding` succeeds)
+- onboardingAt (ISO timestamp)
+- onboardingWritingSample (string, optional)
+- onboardingGoals (optional)
+- onboardingExperienceLevel (optional string)
 
 ## feedback_history
 - userId

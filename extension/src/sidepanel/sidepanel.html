@@ -18,6 +18,16 @@
           <span>Live in Google Docs</span>
         </label>
       </div>
+      <p class="sp-auth-strip">
+        <a
+          id="ext-signin-link"
+          class="sp-auth-link"
+          href="http://127.0.0.1:5173/extension-auth"
+          target="_blank"
+          rel="noopener noreferrer"
+        >Sign in (web)</a>
+        <button type="button" class="sp-auth-link sp-auth-btn" id="ext-signout-btn">Clear token</button>
+      </p>
       <a
         id="home-link"
         class="home-btn"
@@ -90,6 +100,7 @@
       </section>
     </section>
   </div>
+  <script src="../lib/api-headers.js"></script>
   <script src="persist-feedback.js"></script>
   <script src="sidepanel.js"></script>
 </body>

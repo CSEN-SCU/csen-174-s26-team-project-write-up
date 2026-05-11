@@ -63,10 +63,9 @@ flowchart TD
     Writer -->|"Writes and receives<br/>live coaching"| ChromeExt
     Writer -->|"Views onboarding,<br/>issues, and progress"| WebApp
 
-    ChromeExt -->|"Reads/stores issue history<br/>for sidebar display"| AppAPI
-    ChromeExt -->|"Requests live coaching<br/>and sends dismiss signals"| CoachingAPI
-    WebApp -->|"Onboarding dashboard<br/>and history APIs"| AppAPI
-    WebApp -->|"Submits baseline writing<br/>sample (future)"| CoachingAPI
+    ChromeExt -->|"Coach, history, dismissals<br/>(Bearer or dev bypass)"| AppAPI
+    WebApp -->|"History, onboarding, preferences"| AppAPI
+    AppAPI -->|"Proxies /coach, /dismiss"| CoachingAPI
 
     AppAPI -->|"Reads/writes user state<br/>and feedback history"| UserDB
     CoachingAPI -->|"Reads/writes profile,<br/>issue trends, and outcomes"| UserDB
@@ -80,7 +79,7 @@ flowchart TD
     %% --- LAYOUT ANCHORS ---
     %% Invisible links to force the vertical stack and prevent horizontal shifting
     ChromeExt ~~~ AppAPI
-    WebApp ~~~ CoachingAPI
+    WebApp ~~~ AppAPI
     UserDB ~~~ GOAuth
     KnowledgeBase ~~~ LLM
 

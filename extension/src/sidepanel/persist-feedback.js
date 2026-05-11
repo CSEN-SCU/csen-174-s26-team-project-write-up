@@ -26,6 +26,13 @@
    * @returns {Promise<{ saved: number, total: number }>}
    */
   async function persistCoachSuggestions(appBase, headers, docId, coachJson) {
+    let hdrs = headers;
+    if (!hdrs && typeof root.writeUpBuildApiHeaders === "function") {
+      root.writeUpApiBaseForDebug = appBase;
+      hdrs = await root.writeUpBuildApiHeaders();
+    }
+    if (!hdrs) hdrs = { "Content-Type": "application/json" };
+
     const base = String(appBase || "").replace(/\/$/, "");
     const list = Array.isArray(coachJson?.suggestions)
       ? coachJson.suggestions
@@ -62,7 +69,7 @@
 
       const res = await fetch(`${base}/feedback-history`, {
         method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
+        headers: { ...hdrs, "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (res.ok) saved += 1;

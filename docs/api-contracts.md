@@ -13,12 +13,14 @@ Node service for RAG/LLM coaching. Intended to sit **behind** app-api in product
 
 ## App API (`http://localhost:5050`)
 ### Auth and user data
-- `POST /auth/google`
+- `GET /auth/client-config` — **Public.** Returns Firebase web SDK config (`firebase` object) from `FIREBASE_WEB_*` env vars on app-api so the extension can align with the same project as the webapp.
+- `POST /auth/google` — **No legacy OAuth.** JSON body `{ "idToken": "<Firebase ID token>" }`; verifies token and returns `{ ok, uid, email, name }` (same verification as protected routes).
+- `GET /auth/google/callback` — **Not used** (404 + message); clients use Firebase Auth instead of a server OAuth redirect.
 - `GET /users/me`
-- `POST /onboarding`
+- `POST /onboarding` — **Authenticated.** JSON body may include `writingSample` (string), `goals`, `experienceLevel`; merges into Firestore `users/{uid}` (`onboardingComplete`, `onboardingAt`, etc.).
 - `GET /feedback-history?docId=<id>`
 - `POST /feedback-history`
-- `POST /dismissals`
+- `POST /dismissals` — **Authenticated.** JSON: `cardId` (required), optional `category`, `reason`, `sources` (array); appends a row in Firestore `dismissals` (complements coaching-api profile dismiss).
 - `GET /preferences`
 - `PUT /preferences`
 
@@ -36,3 +38,4 @@ These routes require a **Firebase ID token** (`Authorization: Bearer <id_token>`
 
 ## Clients (webapp, extension)
 - Call **app-api** `POST /coach` and `POST /dismiss` only, not coaching-api directly, so `userId` cannot be spoofed and a single auth layer applies.
+- **`GET /auth/client-config`** (no auth): Firebase web SDK fields for aligning the extension with the same Firebase project (requires **`FIREBASE_WEB_*`** on app-api; mirror `VITE_FIREBASE_*` from the webapp).

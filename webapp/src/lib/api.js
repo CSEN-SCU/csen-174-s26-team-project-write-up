@@ -1,5 +1,6 @@
 ﻿/**
  * Thin wrapper around fetch() that:
+ *   - attaches Firebase Bearer (or VITE_DEBUG_APP_USER) on every request,
  *   - parses JSON safely (HTML 502 pages don't crash the UI),
  *   - raises a typed ApiError on non-2xx so React components can branch on it,
  *   - optionally returns a fallback value for safe GET reads when the server
@@ -21,6 +22,36 @@ export class ApiError extends Error {
 
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
 
+/** @type {null | (() => Promise<string | null>)} */
+let getIdTokenCallback = null;
+
+export function setWebappIdTokenGetter(fn) {
+  getIdTokenCallback = typeof fn === "function" ? fn : null;
+}
+
+export function clearWebappIdTokenGetter() {
+  getIdTokenCallback = null;
+}
+
+async function mergeAuthHeaders(initHeaders = {}) {
+  if (getIdTokenCallback) {
+    try {
+      const token = await getIdTokenCallback();
+      if (token && typeof token === "string" && token.trim()) {
+        return { ...initHeaders, Authorization: `Bearer ${token.trim()}` };
+      }
+    } catch {
+      /* fall through to debug user */
+    }
+  }
+  const debugUser = import.meta.env.VITE_DEBUG_APP_USER;
+  const out = { ...initHeaders };
+  if (typeof debugUser === "string" && debugUser.trim()) {
+    out["X-Debug-User"] = debugUser.trim();
+  }
+  return out;
+}
+
 async function parseBody(res) {
   const text = await res.text();
   if (!text) return null;
@@ -35,6 +66,8 @@ export async function apiFetch(path, options = {}) {
   const { fallback, ...init } = options;
   const method = (init.method || "GET").toUpperCase();
   const isSafe = SAFE_METHODS.has(method);
+
+  init.headers = await mergeAuthHeaders(init.headers || {});
 
   let res;
   try {
@@ -58,46 +91,40 @@ export async function apiFetch(path, options = {}) {
 export const api = {
   me: () => apiFetch("/api/users/me", { fallback: null }),
 
-  history: (docId, { headers: extraHeaders = {} } = {}) => {
-    const debugUser = import.meta.env.VITE_DEBUG_APP_USER;
-    const bypass =
-      typeof debugUser === "string" && debugUser.trim()
-        ? { "X-Debug-User": debugUser.trim() }
-        : {};
-    return apiFetch(`/api/feedback-history?docId=${encodeURIComponent(docId ?? "")}`, {
-      headers: { ...bypass, ...extraHeaders },
+  history: (docId, { headers: extraHeaders = {} } = {}) =>
+    apiFetch(`/api/feedback-history?docId=${encodeURIComponent(docId ?? "")}`, {
+      headers: extraHeaders,
       fallback: { items: [], degraded: true, error: "offline" },
-    });
-  },
+    }),
 
   /**
-   * Proxied by app-api to coaching-api. Pass `Authorization: Bearer <idToken>` in
-   * headers when signed in. For local bypass, set VITE_DEBUG_APP_USER in `.env`
-   * to match app-api APP_AUTH_BYPASS (see root `.env.example`).
+   * Proxied by app-api to coaching-api. Extra headers (e.g. overrides) optional.
    */
-  coach: (text, userId, { headers: extraHeaders = {} } = {}) => {
-    const debugUser = import.meta.env.VITE_DEBUG_APP_USER;
-    const bypass =
-      typeof debugUser === "string" && debugUser.trim()
-        ? { "X-Debug-User": debugUser.trim() }
-        : {};
-    return apiFetch("/coach", {
+  coach: (text, userId, { headers: extraHeaders = {} } = {}) =>
+    apiFetch("/coach", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...bypass, ...extraHeaders },
+      headers: { "Content-Type": "application/json", ...extraHeaders },
       body: JSON.stringify({ text, userId, surface: "web" }),
-    });
-  },
+    }),
 
-  saveFeedback: (record, { headers: extraHeaders = {} } = {}) => {
-    const debugUser = import.meta.env.VITE_DEBUG_APP_USER;
-    const bypass =
-      typeof debugUser === "string" && debugUser.trim()
-        ? { "X-Debug-User": debugUser.trim() }
-        : {};
-    return apiFetch("/api/feedback-history", {
+  saveFeedback: (record, { headers: extraHeaders = {} } = {}) =>
+    apiFetch("/api/feedback-history", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...bypass, ...extraHeaders },
+      headers: { "Content-Type": "application/json", ...extraHeaders },
       body: JSON.stringify(record),
-    });
-  },
+    }),
+
+  submitOnboarding: (payload) =>
+    apiFetch("/api/onboarding", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+
+  postDismissal: (payload) =>
+    apiFetch("/api/dismissals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
 };

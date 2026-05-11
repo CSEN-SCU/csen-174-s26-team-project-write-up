@@ -407,3 +407,25 @@ label.sp-label {
   line-height: 1.4;
   white-space: pre-wrap;
 }
+
+.sp-auth-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+
+.sp-auth-link {
+  color: var(--coral);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.sp-auth-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}

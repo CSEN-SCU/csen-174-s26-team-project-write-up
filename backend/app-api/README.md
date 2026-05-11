@@ -37,6 +37,11 @@ Then send `X-Debug-User: <uid>` instead of `Authorization: Bearer <id_token>`. T
 - Clients may send **`X-Request-Id`**; otherwise app-api generates one and forwards it to coaching-api as **`X-Request-Id`**.
 - On coaching-api, set **`COACH_LOG_LLM=1`** (see `backend/coaching-api/.env.example`). LLM stderr lines (`[coach-llm]`) then include the same **`requestId`** and **`userId`** so you can join gateway timing with model request/response previews in your log viewer.
 
+### Extension + webapp auth alignment
+
+- Set **`FIREBASE_WEB_*`** on app-api (same values as the Firebase web app / `VITE_FIREBASE_*` in the webapp). **`GET /auth/client-config`** then returns the public SDK config for tools that fetch it.
+- The webapp pushes **`WRITEUP_SET_ID_TOKEN`** to the Chrome extension when **`VITE_EXTENSION_ID`** is set and the user is signed in with Firebase (`externally_connectable` in the extension manifest).
+
 Environment options for Firebase credentials (same order as above; legacy short list):
 
 1. `FIREBASE_SERVICE_ACCOUNT_JSON` (or env-suffixed variant) — raw JSON string (best for CI).

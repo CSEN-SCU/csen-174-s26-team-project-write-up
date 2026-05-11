@@ -113,14 +113,13 @@ sequenceDiagram
 
 ---
 
-## 6. Implementation gaps (honest)
+## 6. Implementation gaps (smaller now)
 
 | Area | Status |
 |------|--------|
-| Webapp Firebase sign-in + Bearer on all calls | Partially scaffolded (`webapp/src/lib/firebase.js`); coach/history need consistent headers |
-| Extension production auth | Still local `X-Debug-User`; needs ID token path aligned with webapp |
-| `POST /dismissals` (Firestore) | Stub 501 |
-| `POST /auth/google`, onboarding | Stub 501 |
+| Webapp / extension token refresh | Extension stores latest ID token from webapp; refresh when you revisit the webapp while signed in, or sign in again on `/extension-auth`. |
+| Hosted web origin for `externally_connectable` | Manifest lists localhost only; add your production web origin when you deploy. |
+| `GET /auth/google/callback` | Intentionally unused (Firebase replaces server OAuth redirect). |
 
 ---
 
@@ -131,4 +130,4 @@ sequenceDiagram
 - [product-vision.md](product-vision.md) — why the feedback loop exists  
 - [firebase/schema.md](../backend/app-api/firebase/schema.md) — Firestore shapes  
 
-When behavior changes (e.g. dismissals implemented), update **this file** and **api-contracts** together so UX and API stay aligned.
+When behavior changes, update **this file** and **api-contracts** together so UX and API stay aligned.

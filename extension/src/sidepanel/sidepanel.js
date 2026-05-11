@@ -1,7 +1,11 @@
 ﻿const APP_API_BASE = "http://127.0.0.1:5050";
 const DEFAULT_API_BASE = APP_API_BASE;
+globalThis.writeUpApiBaseForDebug = APP_API_BASE;
 
-function appApiJsonHeaders() {
+async function buildAppApiHeaders() {
+  if (typeof globalThis.writeUpBuildApiHeaders === "function") {
+    return globalThis.writeUpBuildApiHeaders();
+  }
   const h = { "Content-Type": "application/json" };
   if (/127\.0\.0\.1|localhost/i.test(APP_API_BASE)) {
     h["X-Debug-User"] = "local-extension-user";
@@ -144,8 +148,9 @@ function renderWordBank(items) {
 async function loadWordBank() {
   const base = APP_API_BASE;
   try {
+    const headers = await buildAppApiHeaders();
     const res = await fetch(`${base}/feedback-history?docId=active`, {
-      headers: appApiJsonHeaders(),
+      headers,
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return renderWordBank([]);
@@ -171,9 +176,10 @@ async function runFeedback() {
   outputMeta.textContent = "";
 
   try {
+    const headers = await buildAppApiHeaders();
     const res = await fetch(`${APP_API_BASE}/coach`, {
       method: "POST",
-      headers: appApiJsonHeaders(),
+      headers,
       body: JSON.stringify({ text, focus }),
     });
     const data = await res.json().catch(() => ({}));
@@ -195,7 +201,7 @@ async function runFeedback() {
       try {
         const { saved, total } = await writeUpPersistCoachSuggestions(
           APP_API_BASE,
-          appApiJsonHeaders(),
+          null,
           "active",
           data,
         );
@@ -235,6 +241,13 @@ async function init() {
   await loadWordBank();
   hydrateLiveSettings();
 }
+
+document.getElementById("ext-signout-btn")?.addEventListener("click", async () => {
+  if (typeof writeUpClearAuthToken === "function") {
+    await writeUpClearAuthToken();
+  }
+  statusLine.textContent = "Cleared saved token. Local debug user still works on localhost.";
+});
 
 submitBtn.addEventListener("click", runFeedback);
 tabFeedback.addEventListener("click", () => setActiveTab("feedback"));
