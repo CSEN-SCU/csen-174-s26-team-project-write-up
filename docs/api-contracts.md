@@ -1,8 +1,70 @@
 ﻿# API Contracts (v0)
 
 ## Shared Types
-- `FeedbackCard`: `shared/types/feedback-card.js`
+- **Coach wire cards** (`POST /coach` → `suggestions` / `cards`): `CoachSuggestionCard`, full envelope `CoachApiSuccessBody` — `shared/types/feedback-card.js`
+- **Persisted history card** (Firestore / `POST /feedback-history`): `FeedbackCard` — same file
 - `DismissEvent`: `shared/types/dismiss-event.js`
+
+## `POST /coach` success body (feedback card output)
+
+HTTP **200** JSON matches **`CoachApiSuccessBody`** in `shared/types/feedback-card.js`.
+
+| Field | Type | Notes |
+|--------|------|--------|
+| `suggestions` | **array** | Primary list of cards (see row schema below). |
+| `cards` | **array** | Same references as `suggestions` (duplicate for older clients). |
+| `feedback` | **string** | Plain-text digest built from cards (`title`, `body`, optional `micro_edit`). |
+| `source` | **string** | e.g. `"coaching-api"`. |
+| `model` | **string \| null** | Resolved LLM model id when the LLM ran; may be null if only heuristics/dictionary fired. |
+| `userId` | **string** | Stable id used for profile and draft retrieval. |
+| `personalization` | **object** | Echo: `goals`, `audience`, `tonePreference`. |
+| `profileSnapshot` | **object \| null** | Rolling aggregate signals from `summarizeProfile`. |
+| `retrievedChunks` | **array** | RAG context chunks: `id`, `score`, `text`, `source`. |
+| `vocabulary_pairs_saved` | **number** | Placeholder counter (currently `0` from coaching-api). |
+
+### `CoachSuggestionCard` (one element of `suggestions` / `cards`)
+
+| Field | Type | Required | Notes |
+|--------|------|----------|--------|
+| `type` | **string** | yes | After guardrails, one of: `pattern`, `coherence`, `clarity`, `grammar`, `punctuation`, `voice`. |
+| `title` | **string** | yes* | *At least one of `title` or `body` must be non-empty after guardrails. |
+| `body` | **string** | yes* | Reader-facing explanation; may use markdown emphasis. |
+| `micro_edit` | **string \| null** | no | Optional short rewrite hint for one clause. |
+
+Guardrails (see `backend/coaching-api/src/coach/guardrails.js`): drop malformed cards, unknown `type`, cards whose quoted phrases are not found in the user text, and cap length (default **10**).
+
+### Example (truncated)
+
+`cards` in production is the same content as `suggestions` (same array serialized twice).
+
+```json
+{
+  "suggestions": [
+    {
+      "type": "clarity",
+      "title": "Tighten the lead sentence",
+      "body": "Readers decide fast—your first line can state the stake in fewer words.",
+      "micro_edit": null
+    }
+  ],
+  "cards": [
+    {
+      "type": "clarity",
+      "title": "Tighten the lead sentence",
+      "body": "Readers decide fast—your first line can state the stake in fewer words.",
+      "micro_edit": null
+    }
+  ],
+  "feedback": "1. Tighten the lead sentence\nReaders decide fast…",
+  "source": "coaching-api",
+  "model": "gpt-4o-mini",
+  "userId": "abc123",
+  "personalization": { "goals": "", "audience": "", "tonePreference": "neutral" },
+  "profileSnapshot": { "requests": 3, "avgSentenceLength": 18.2 },
+  "retrievedChunks": [{ "id": "guide.md#0", "score": 0.42, "text": "…", "source": "guide.md" }],
+  "vocabulary_pairs_saved": 0
+}
+```
 
 ## Coaching API (`http://localhost:8787`)
 Node service for RAG/LLM coaching. Intended to sit **behind** app-api in production (not called directly by browsers).
