@@ -195,7 +195,9 @@
     });
 
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== "local" || !changes.docsLiveEnabled) return;
+      if (area !== "local") return;
+      if (changes.docsLiveUseMcp) lastDigest = "";
+      if (!changes.docsLiveEnabled) return;
       if (changes.docsLiveEnabled.newValue) {
         lastDigest = "";
         start();

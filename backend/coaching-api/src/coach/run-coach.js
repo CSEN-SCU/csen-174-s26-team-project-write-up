@@ -16,6 +16,7 @@ import {
 import { dedupeSuggestionTitles, suggestionsToFeedback } from "./format.js";
 import { applyRagFeedbackGuardrails } from "./guardrails.js";
 import { coachWithChatCompletions, resolveCoachLlmAttempts } from "../llm/index.js";
+import { resolveCoachDraftText } from "../integrations/google-docs-mcp.js";
 
 const RAG_TOP_K = Math.max(1, Math.min(24, Number(process.env.RAG_TOP_K || 8)));
 
@@ -27,7 +28,6 @@ export async function runCoach(body, meta = {}) {
   const requestId =
     typeof meta.requestId === "string" && meta.requestId.trim() ? meta.requestId.trim() : undefined;
   const {
-    text,
     userId: rawUserId,
     surface = "extension",
     coachMode: rawMode,
@@ -36,6 +36,12 @@ export async function runCoach(body, meta = {}) {
     audience: rawAudience,
     tonePreference: rawTonePreference,
   } = body || {};
+
+  const resolved = await resolveCoachDraftText(body || {});
+  if (!resolved.ok) {
+    return { error: resolved.error, status: resolved.status || 400 };
+  }
+  const text = resolved.text;
 
   if (text == null || typeof text !== "string") {
     return { error: "Missing text", status: 400 };

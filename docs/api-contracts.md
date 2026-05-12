@@ -7,7 +7,7 @@
 ## Coaching API (`http://localhost:8787`)
 Node service for RAG/LLM coaching. Intended to sit **behind** app-api in production (not called directly by browsers).
 
-- `POST /coach` — JSON body: see `backend/coaching-api/src/coach/run-coach.js` (`text`, `userId`, optional `surface`, `focus`, `goals`, `audience`, `tonePreference`, etc.).
+- `POST /coach` — JSON body: see `backend/coaching-api/src/coach/run-coach.js` (`text`, `userId`, optional `surface`, `focus`, …). **MCP / Google Docs:** with `use_mcp: true` and `doc_id`, `text` may be empty; coaching-api loads content using `GOOGLE_DOCS_ACCESS_TOKEN` or `GOOGLE_DOCS_MCP_BRIDGE_URL` (see `docs/mcp-google-cloud-testing.md`).
 - `POST /dismiss` — JSON body includes `userId` and dismiss payload; updates coaching profile store.
 - `GET /profile/:userId` — read-only profile snapshot for a user.
 

@@ -28,6 +28,7 @@ const tabWordBank = document.getElementById("tab-wordbank");
 const panelFeedback = document.getElementById("panel-feedback");
 const panelWordBank = document.getElementById("panel-wordbank");
 const docsLiveEnabled = document.getElementById("docs-live-enabled");
+const docsLiveUseMcp = document.getElementById("docs-live-use-mcp");
 const docsLiveStatus = document.getElementById("docs-live-status");
 const docsLiveOutput = document.getElementById("docs-live-output");
 
@@ -52,6 +53,7 @@ function persistLiveSettings() {
   if (!chrome?.storage?.local) return;
   chrome.storage.local.set({
     docsLiveEnabled: !!docsLiveEnabled?.checked,
+    docsLiveUseMcp: !!docsLiveUseMcp?.checked,
     docsLiveFocus: selectedFocus(),
   });
 }
@@ -61,6 +63,7 @@ function hydrateLiveSettings() {
   chrome.storage.local.get(
     {
       docsLiveEnabled: false,
+      docsLiveUseMcp: false,
       docsLiveFocus: ["vocabulary", "tone"],
       liveDocsStatus: "",
       liveDocsFeedback: "",
@@ -68,6 +71,7 @@ function hydrateLiveSettings() {
     },
     (state) => {
       if (docsLiveEnabled) docsLiveEnabled.checked = !!state.docsLiveEnabled;
+      if (docsLiveUseMcp) docsLiveUseMcp.checked = !!state.docsLiveUseMcp;
       if (Array.isArray(state.docsLiveFocus)) {
         document.querySelectorAll('input[name="focus"]').forEach((el) => {
           el.checked = state.docsLiveFocus.includes(el.value);
@@ -257,6 +261,7 @@ tabWordBank.addEventListener("click", async () => {
 });
 document.querySelectorAll('input[name="focus"]').forEach((el) => el.addEventListener("change", persistLiveSettings));
 docsLiveEnabled?.addEventListener("change", persistLiveSettings);
+docsLiveUseMcp?.addEventListener("change", persistLiveSettings);
 
 if (chrome?.storage?.onChanged) {
   chrome.storage.onChanged.addListener((changes, areaName) => {

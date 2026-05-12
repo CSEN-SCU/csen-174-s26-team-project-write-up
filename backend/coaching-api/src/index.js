@@ -19,7 +19,7 @@ app.get("/", (_req, res) => {
   <p><strong>coaching-api</strong> is running. There is no web UI on this port.</p>
   <ul>
     <li><a href="/health">GET /health</a> — status, RAG chunk count, LLM config</li>
-    <li>POST /coach — JSON body: <code>{"text":"...","userId":"stable-id","goals":"optional","audience":"optional","tonePreference":"formal|neutral|casual"}</code></li>
+    <li>POST /coach — JSON body: <code>{"text":"...","userId":"stable-id",...}</code> or MCP mode <code>{"use_mcp":true,"doc_id":"…","userId":"…","text":""}</code> with <code>GOOGLE_DOCS_ACCESS_TOKEN</code> or <code>GOOGLE_DOCS_MCP_BRIDGE_URL</code> set on the server</li>
     <li>POST /dismiss — optional feedback dismiss events</li>
     <li>GET /profile/:userId — stored coaching profile</li>
   </ul>
@@ -43,6 +43,8 @@ app.get("/health", (_req, res) => {
     coachLogLlm: coachLogLlmEnabled(),
     coachLogLlmFull: coachLogLlmFullBodies(),
     coachLogLlmPreview: coachLogLlmPreviewLimit(),
+    googleDocsMcpBridge: Boolean((process.env.GOOGLE_DOCS_MCP_BRIDGE_URL || "").trim()),
+    googleDocsAccessToken: Boolean((process.env.GOOGLE_DOCS_ACCESS_TOKEN || "").trim()),
   });
 });
 

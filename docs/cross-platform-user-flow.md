@@ -8,7 +8,7 @@ This document is the **behavioral spec** for how a single writer moves between *
 
 | Surface | Role today | Primary APIs |
 |--------|------------|--------------|
-| **Google Docs** (`https://docs.google.com/document/...`) | Live writing; extension **content script** reads draft text (DOM) or MCP mode; optional live coaching when the side panel enables “live” | `POST /coach` on **app-api** (proxied to coaching-api); `chrome.storage.local` for live status and last feedback text |
+| **Google Docs** (`https://docs.google.com/document/...`) | Live writing; extension **content script** reads draft text (DOM) or **MCP / Docs API** when `docsLiveUseMcp` is on; optional live coaching when the side panel enables “live” | `POST /coach` on **app-api** (proxied to coaching-api); `chrome.storage.local` for live status and last feedback text · **MCP testing:** [mcp-google-cloud-testing.md](mcp-google-cloud-testing.md) |
 | **Chrome extension — side panel** | Paste-or-type draft, focus toggles, word bank; opens from Chrome | `POST /coach`, `GET /feedback-history?docId=active` on **app-api** |
 | **Webapp** (React) | Dashboard, onboarding layout, **history** by document, profile/preferences UI | `GET/POST` **app-api** routes under `/api` in dev (Vite proxy); coach via `POST /coach` when wired |
 | **App API** | Auth, Firestore-backed **feedback history**, user/preferences; **coach proxy** | See [api-contracts.md](api-contracts.md) |
