@@ -28,7 +28,12 @@
     },
     {
       "matches": ["https://docs.google.com/document/*"],
-      "js": ["src/lib/api-headers.js", "src/sidepanel/persist-feedback.js", "src/content/docs.js"],
+      "js": [
+        "src/lib/api-headers.js",
+        "src/lib/coach-defaults.js",
+        "src/sidepanel/persist-feedback.js",
+        "src/content/docs.js"
+      ],
       "run_at": "document_idle"
     }
   ],

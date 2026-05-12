@@ -131,9 +131,16 @@
         liveDocsDocId: docId,
       });
 
+      const personalization =
+        globalThis.writeUpDefaultCoachPersonalization &&
+        typeof globalThis.writeUpDefaultCoachPersonalization === "object"
+          ? { ...globalThis.writeUpDefaultCoachPersonalization }
+          : { goals: "", audience: "", tonePreference: "neutral" };
       callFeedback({
         text,
         focus: Array.isArray(cfg.docsLiveFocus) ? cfg.docsLiveFocus : ["vocabulary", "tone"],
+        surface: "extension-docs-live",
+        ...personalization,
         live: true,
         use_mcp: useMcp,
         doc_id: docId,

@@ -91,6 +91,17 @@ export function mergeProfile(profile, signals) {
   return next;
 }
 
+/** Lightweight index for per-user draft corpus (full text stays server-side). */
+export function summarizeDraftsIndex(drafts) {
+  const list = Array.isArray(drafts) ? drafts : [];
+  return list.map((d) => ({
+    id: String(d?.id || ""),
+    createdAt: d?.createdAt || null,
+    charCount: String(d?.text || "").length,
+    source: String(d?.source || "user-draft-history"),
+  }));
+}
+
 export function summarizeProfile(profile) {
   const p = profile || createEmptyProfile();
   const totalSentences = Math.max(p.totalSentences, 1);

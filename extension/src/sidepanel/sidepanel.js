@@ -12,6 +12,12 @@ async function buildAppApiHeaders() {
   }
   return h;
 }
+
+function coachPersonalizationPayload() {
+  const d = globalThis.writeUpDefaultCoachPersonalization;
+  if (d && typeof d === "object") return { ...d };
+  return { goals: "", audience: "", tonePreference: "neutral" };
+}
 const WORD_BANK_DISPLAY_COUNT = 8;
 
 const homeLink = document.getElementById("home-link");
@@ -184,7 +190,12 @@ async function runFeedback() {
     const res = await fetch(`${APP_API_BASE}/coach`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ text, focus }),
+      body: JSON.stringify({
+        text,
+        focus,
+        surface: "extension",
+        ...coachPersonalizationPayload(),
+      }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {

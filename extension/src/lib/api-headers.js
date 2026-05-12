@@ -1,11 +1,23 @@
 /**
  * Shared app-api request headers: prefer Firebase ID token from storage (set by
  * webapp via externally_connectable); fall back to X-Debug-User on localhost.
+ * Local debug uses a persisted stable uid so coaching-api personalization and
+ * per-user draft retrieval stay tied to this install.
  */
 (function (root) {
-  const DEBUG_UID = "local-extension-user";
+  const STORAGE_DEBUG_UID = "writeUpLocalDebugUserId";
+  const LEGACY_DEBUG_UID = "local-extension-user";
 
   root.writeUpApiBaseForDebug = "";
+
+  function randomUid() {
+    try {
+      if (typeof crypto !== "undefined" && crypto.randomUUID) return `ext-${crypto.randomUUID()}`;
+    } catch (_) {
+      /* ignore */
+    }
+    return `ext-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  }
 
   root.writeUpBuildApiHeaders = function () {
     return new Promise((resolve) => {
@@ -14,20 +26,33 @@
 
       if (!chrome?.storage?.local) {
         const h = { "Content-Type": "application/json" };
-        if (isLocal) h["X-Debug-User"] = DEBUG_UID;
+        if (isLocal) h["X-Debug-User"] = LEGACY_DEBUG_UID;
         resolve(h);
         return;
       }
 
-      chrome.storage.local.get({ firebaseIdToken: "" }, (s) => {
+      chrome.storage.local.get({ firebaseIdToken: "", [STORAGE_DEBUG_UID]: "" }, (s) => {
         const h = { "Content-Type": "application/json" };
         if (s.firebaseIdToken) {
           h.Authorization = `Bearer ${s.firebaseIdToken}`;
           resolve(h);
           return;
         }
-        if (isLocal) h["X-Debug-User"] = DEBUG_UID;
-        resolve(h);
+        if (!isLocal) {
+          resolve(h);
+          return;
+        }
+        let uid = String(s[STORAGE_DEBUG_UID] || "").trim();
+        if (uid) {
+          h["X-Debug-User"] = uid;
+          resolve(h);
+          return;
+        }
+        uid = randomUid();
+        chrome.storage.local.set({ [STORAGE_DEBUG_UID]: uid }, () => {
+          h["X-Debug-User"] = uid;
+          resolve(h);
+        });
       });
     });
   };

@@ -2,7 +2,7 @@
 import express from "express";
 import cors from "cors";
 import { loadKnowledge, getChunkCount, hasSpellAugment } from "./rag/index.js";
-import { applyDismiss, loadProfile, summarizeProfile } from "./profile/index.js";
+import { applyDismiss, loadProfile, summarizeProfile, summarizeDraftsIndex } from "./profile/index.js";
 import { runCoach } from "./coach/run-coach.js";
 import { resolveCoachLlmAttempts } from "./llm/index.js";
 import { coachLogLlmEnabled, coachLogLlmFullBodies, coachLogLlmPreviewLimit } from "./llm/log.js";
@@ -19,9 +19,9 @@ app.get("/", (_req, res) => {
   <p><strong>coaching-api</strong> is running. There is no web UI on this port.</p>
   <ul>
     <li><a href="/health">GET /health</a> — status, RAG chunk count, LLM config</li>
-    <li>POST /coach — JSON body: <code>{"text":"...","userId":"stable-id",...}</code> or MCP mode <code>{"use_mcp":true,"doc_id":"…","userId":"…","text":""}</code> with <code>GOOGLE_DOCS_ACCESS_TOKEN</code> or <code>GOOGLE_DOCS_MCP_BRIDGE_URL</code> set on the server</li>
+    <li>POST /coach — JSON body: <code>{"text":"...","userId":"stable-id",...}</code> (optional <code>goals</code>, <code>audience</code>, <code>tonePreference</code>: formal|neutral|casual) or MCP mode <code>{"use_mcp":true,"doc_id":"…","userId":"…","text":""}</code> with <code>GOOGLE_DOCS_ACCESS_TOKEN</code> or <code>GOOGLE_DOCS_MCP_BRIDGE_URL</code> set on the server</li>
     <li>POST /dismiss — optional feedback dismiss events</li>
-    <li>GET /profile/:userId — stored coaching profile</li>
+    <li>GET /profile/:userId — stored coaching profile and per-user draft index</li>
   </ul>
 </body>
 </html>`);
@@ -77,12 +77,21 @@ app.get("/profile/:userId", async (req, res) => {
   try {
     const row = await loadProfile(req.params.userId);
     if (!row) {
-      return res.json({ userId: req.params.userId, profileSnapshot: null, notes: [] });
+      return res.json({
+        userId: req.params.userId,
+        profileSnapshot: null,
+        notes: [],
+        draftsIndex: [],
+        draftCount: 0,
+      });
     }
+    const drafts = Array.isArray(row.drafts) ? row.drafts : [];
     res.json({
       userId: req.params.userId,
       profileSnapshot: summarizeProfile(row.profile),
       notes: row.notes,
+      draftsIndex: summarizeDraftsIndex(drafts),
+      draftCount: drafts.length,
     });
   } catch (e) {
     console.error(e);
