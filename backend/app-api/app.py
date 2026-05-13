@@ -1,5 +1,9 @@
-﻿import logging
+﻿from __future__ import annotations
+
+import logging
 import os
+from urllib.parse import urlparse
+
 from flask import Flask, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -17,8 +21,49 @@ from routes.coach_proxy import bp as coach_proxy_bp
 
 logging.basicConfig(level=logging.INFO)
 
+# Content script on Google Docs calls app-api with the Docs page origin (see extension manifest).
+_DOCS_APP_ORIGIN = "https://docs.google.com"
+
+
+def _origin_from_base_url(url: str) -> str | None:
+    base = url.strip().rstrip("/")
+    if not base:
+        return None
+    if "://" not in base:
+        base = f"http://{base}"
+    parsed = urlparse(base)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def _cors_allowed_origins() -> list[str]:
+    """Explicit APP_CORS_ORIGINS wins; else derive from WEBAPP_BASE_URL + fixed clients."""
+    raw = os.environ.get("APP_CORS_ORIGINS", "").strip()
+    if raw:
+        return [o.strip() for o in raw.split(",") if o.strip()]
+
+    origins: list[str] = []
+    webapp = os.environ.get("WEBAPP_BASE_URL", "")
+    origin = _origin_from_base_url(webapp) if webapp else None
+    if origin:
+        origins.append(origin)
+    origins.append(_DOCS_APP_ORIGIN)
+
+    if os.environ.get("APP_ENV", "dev").strip().lower() in ("dev", "test"):
+        origins.extend(
+            (
+                "http://127.0.0.1:5173",
+                "http://localhost:5173",
+            )
+        )
+
+    return list(dict.fromkeys(origins))
+
+
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+_cors_origins = _cors_allowed_origins()
+CORS(app, resources={r"/*": {"origins": _cors_origins}})
 
 app.register_blueprint(users_bp)
 app.register_blueprint(onboarding_bp)
