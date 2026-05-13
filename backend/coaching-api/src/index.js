@@ -1,4 +1,4 @@
-﻿import "dotenv/config";
+﻿import "./load-env.js";
 import express from "express";
 import { loadKnowledge, getChunkCount, hasSpellAugment } from "./rag/index.js";
 import { applyDismiss } from "./profile/index.js";

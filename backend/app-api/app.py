@@ -4,7 +4,7 @@ import logging
 import os
 from urllib.parse import urlparse
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -81,6 +81,17 @@ app.register_blueprint(oauth_bp)
 app.register_blueprint(coach_proxy_bp)
 
 
+@app.get("/")
+def _root():
+    """Default browser hit; routes omit /api on this server (Vite strips /api only in webapp dev)."""
+    return jsonify(
+        ok=True,
+        service="app-api",
+        health="/health",
+        note="Paths are /users/me, /coach, /auth/client-config, ... (no /api/ prefix when calling Flask on port 5050; Vite strips /api in webapp dev).",
+    )
+
+
 @app.errorhandler(RateLimitExceeded)
 def _handle_rate_limited(_err):
     return (
@@ -100,7 +111,14 @@ def _handle_api_error(err):
 
 @app.errorhandler(404)
 def _handle_404(_err):
-    return jsonify(ok=False, error="not_found"), 404
+    p = request.path
+    hint = None
+    if p.startswith("/api/") and len(p) > len("/api/"):
+        hint = f"Try {p[4:]} - app-api has no /api prefix (the webapp dev proxy strips /api before forwarding here)."
+    body: dict = {"ok": False, "error": "not_found"}
+    if hint:
+        body["message"] = hint
+    return jsonify(body), 404
 
 
 @app.errorhandler(405)

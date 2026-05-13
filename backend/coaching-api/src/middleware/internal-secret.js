@@ -10,7 +10,8 @@ export function assertCoachingInternalSecretConfigured() {
   const s = (process.env.COACHING_INTERNAL_SECRET || "").trim();
   if (!s) {
     console.error(
-      "FATAL: COACHING_INTERNAL_SECRET must be set (same value on app-api and coaching-api). See root .env.example.",
+      "FATAL: COACHING_INTERNAL_SECRET is missing or empty after loading repo .env and backend/coaching-api/.env. " +
+        "Add a long random value (same on app-api and coaching-api). See root .env.example.",
     );
     process.exit(1);
   }
