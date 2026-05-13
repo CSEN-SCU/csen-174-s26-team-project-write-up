@@ -25,7 +25,8 @@ app.get("/", (_req, res) => {
   <p><strong>coaching-api</strong> is running. There is no web UI on this port.</p>
   <p>Every route requires header <code>X-Coaching-Internal-Secret</code> (see <code>COACHING_INTERNAL_SECRET</code> in <code>.env.example</code>).</p>
   <ul>
-    <li><code>GET /health</code> — status, RAG chunk count, LLM config</li>
+    <li><code>GET /health</code> — liveness only (<code>{"ok":true}</code>)</li>
+    <li><code>GET /internal/diagnostics</code> — LLM/RAG/MCP flags for operators (same secret header)</li>
     <li>POST /coach — JSON body: <code>{"text":"...","userId":"stable-id",...}</code> (optional <code>goals</code>, <code>audience</code>, <code>tonePreference</code>: formal|neutral|casual) or MCP mode <code>{"use_mcp":true,"doc_id":"…","userId":"…","text":""}</code> with <code>GOOGLE_DOCS_ACCESS_TOKEN</code> or <code>GOOGLE_DOCS_MCP_BRIDGE_URL</code> set on the server</li>
     <li>POST /dismiss — optional feedback dismiss events</li>
   </ul>
@@ -33,9 +34,9 @@ app.get("/", (_req, res) => {
 </html>`);
 });
 
-app.get("/health", (_req, res) => {
+function diagnosticsPayload() {
   const attempts = resolveCoachLlmAttempts();
-  res.json({
+  return {
     ok: true,
     service: "coaching-api",
     chunks: getChunkCount(),
@@ -51,7 +52,15 @@ app.get("/health", (_req, res) => {
     coachLogLlmPreview: coachLogLlmPreviewLimit(),
     googleDocsMcpBridge: Boolean((process.env.GOOGLE_DOCS_MCP_BRIDGE_URL || "").trim()),
     googleDocsAccessToken: Boolean((process.env.GOOGLE_DOCS_ACCESS_TOKEN || "").trim()),
-  });
+  };
+}
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true });
+});
+
+app.get("/internal/diagnostics", (_req, res) => {
+  res.json(diagnosticsPayload());
 });
 
 app.post("/coach", coachPostRateLimiter, async (req, res) => {

@@ -47,7 +47,7 @@ Put it in `backend/coaching-api/.env`:
 GOOGLE_DOCS_ACCESS_TOKEN=ya29...
 ```
 
-Restart coaching-api. `curl -fsS -H "X-Coaching-Internal-Secret: $COACHING_INTERNAL_SECRET" http://127.0.0.1:8787/health` should show `"googleDocsAccessToken": true`.
+Restart coaching-api. `curl -fsS -H "X-Coaching-Internal-Secret: $COACHING_INTERNAL_SECRET" http://127.0.0.1:8787/internal/diagnostics` should show `"googleDocsAccessToken": true`.
 
 ### Option B — `gcloud` user credentials (CLI-oriented teams)
 
