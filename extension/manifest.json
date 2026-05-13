@@ -8,7 +8,8 @@
   "externally_connectable": {
     "matches": [
       "http://127.0.0.1:5173/*",
-      "http://localhost:5173/*"
+      "http://localhost:5173/*",
+      "https://csen-174-s26-team-project-write-up.vercel.app/*"
     ]
   },
   "host_permissions": [
@@ -16,13 +17,18 @@
     "http://localhost:5050/*",
     "http://127.0.0.1:5173/*",
     "http://localhost:5173/*",
+    "https://csen-174-s26-team-project-write-up.vercel.app/*",
     "https://docs.google.com/*"
   ],
   "action": { "default_title": "Open Write Up side panel" },
   "background": { "service_worker": "src/background.js" },
   "content_scripts": [
     {
-      "matches": ["http://127.0.0.1:5173/*", "http://localhost:5173/*"],
+      "matches": [
+        "http://127.0.0.1:5173/*",
+        "http://localhost:5173/*",
+        "https://csen-174-s26-team-project-write-up.vercel.app/*"
+      ],
       "js": ["src/content/landing.js"],
       "run_at": "document_idle"
     },

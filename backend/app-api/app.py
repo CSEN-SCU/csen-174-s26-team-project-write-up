@@ -38,7 +38,7 @@ def _origin_from_base_url(url: str) -> str | None:
 
 
 def _cors_allowed_origins() -> list[str]:
-    """Explicit APP_CORS_ORIGINS wins; else derive from WEBAPP_BASE_URL + fixed clients."""
+    """Explicit APP_CORS_ORIGINS wins; else WEBAPP_BASE_URL + docs + dev Vite + APP_EXTRA_CORS_ORIGINS."""
     raw = os.environ.get("APP_CORS_ORIGINS", "").strip()
     if raw:
         return [o.strip() for o in raw.split(",") if o.strip()]
@@ -57,6 +57,10 @@ def _cors_allowed_origins() -> list[str]:
                 "http://localhost:5173",
             )
         )
+
+    extras = os.environ.get("APP_EXTRA_CORS_ORIGINS", "").strip()
+    if extras:
+        origins.extend(o.strip() for o in extras.split(",") if o.strip())
 
     return list(dict.fromkeys(origins))
 

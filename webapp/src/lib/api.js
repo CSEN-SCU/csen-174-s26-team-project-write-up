@@ -22,6 +22,19 @@ export class ApiError extends Error {
 
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
 
+/** Absolute app-api base (no trailing slash). Unset in local dev → Vite proxy uses same-origin relative paths. */
+const APP_API_BASE =
+  typeof import.meta.env.VITE_APP_API_BASE_URL === "string"
+    ? import.meta.env.VITE_APP_API_BASE_URL.trim().replace(/\/+$/, "")
+    : "";
+
+function resolveApiUrl(path) {
+  if (!path.startsWith("/") || !APP_API_BASE) {
+    return path;
+  }
+  return `${APP_API_BASE}${path}`;
+}
+
 /** @type {null | (() => Promise<string | null>)} */
 let getIdTokenCallback = null;
 
@@ -71,7 +84,7 @@ export async function apiFetch(path, options = {}) {
 
   let res;
   try {
-    res = await fetch(path, init);
+    res = await fetch(resolveApiUrl(path), init);
   } catch (networkErr) {
     if (isSafe && fallback !== undefined) return fallback;
     throw new ApiError("network_error", { status: 0, code: "network_error" });

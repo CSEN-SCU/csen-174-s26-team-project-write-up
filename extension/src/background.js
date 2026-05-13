@@ -14,7 +14,11 @@ chrome.runtime.onInstalled.addListener(openSidePanelOnActionClick);
 chrome.runtime.onStartup.addListener(openSidePanelOnActionClick);
 openSidePanelOnActionClick();
 
-const ALLOWED_WEBAPP_ORIGINS = new Set(["http://127.0.0.1:5173", "http://localhost:5173"]);
+const ALLOWED_WEBAPP_ORIGINS = new Set([
+  "http://127.0.0.1:5173",
+  "http://localhost:5173",
+  "https://csen-174-s26-team-project-write-up.vercel.app",
+]);
 
 function senderAllowed(sender) {
   const url = sender?.url || "";

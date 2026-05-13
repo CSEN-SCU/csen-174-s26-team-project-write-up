@@ -8,6 +8,11 @@ import pytest
 from app import app
 
 
+@pytest.fixture(autouse=True)
+def _coaching_internal_secret_env(monkeypatch):
+    monkeypatch.setenv("COACHING_INTERNAL_SECRET", "test-coaching-internal")
+
+
 @pytest.fixture
 def client():
     app.config["TESTING"] = True
@@ -45,6 +50,8 @@ def test_coach_proxy_overwrites_user_id_and_forwards_body(mock_urlopen, client):
     assert res.get_json()["runId"] == "run-1"
 
     forwarded = mock_urlopen.call_args[0][0]
+    sent = {k.lower(): v for k, v in forwarded.header_items()}
+    assert sent.get("x-coaching-internal-secret") == "test-coaching-internal"
     payload = json.loads(forwarded.data.decode("utf-8"))
     assert payload["userId"] == "trusted"
     assert payload["text"] == "Hello world."
@@ -69,6 +76,8 @@ def test_dismiss_proxy_forces_user_id(mock_urlopen, client):
 
     assert res.status_code == 200
     forwarded = mock_urlopen.call_args[0][0]
+    sent = {k.lower(): v for k, v in forwarded.header_items()}
+    assert sent.get("x-coaching-internal-secret") == "test-coaching-internal"
     payload = json.loads(forwarded.data.decode("utf-8"))
     assert payload["userId"] == "uid-42"
     assert payload["title"] == "A suggestion"

@@ -109,7 +109,7 @@ sequenceDiagram
 
 - **Same `userId`:** dev bypass uses a fixed synthetic uid only for local testing; production uses one Firebase user across extension and webapp.
 - **Same `docId`:** when testing Docs + webapp together, use the **Google document id** as `docId` in History URLs and in any `POST /feedback-history` payloads.
-- **Both backends:** coaching-api must be up for coach routes; app-api must have `COACHING_API_BASE_URL` and Firebase (or bypass) for protected routes.
+- **Both backends:** coaching-api must be up for coach routes; app-api must have `COACHING_API_BASE_URL`, the same **`COACHING_INTERNAL_SECRET`** as coaching-api (proxy header), and Firebase (or bypass) for protected routes.
 
 ---
 

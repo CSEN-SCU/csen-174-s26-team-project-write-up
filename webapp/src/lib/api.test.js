@@ -4,6 +4,7 @@ import { ApiError, apiFetch } from "./api.js";
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 function mockFetch(response) {
@@ -38,6 +39,21 @@ describe("apiFetch", () => {
     const result = await apiFetch("/api/feedback-history", { fallback });
 
     expect(result).toEqual(fallback);
+  });
+
+  it("prefixes absolute paths with VITE_APP_API_BASE_URL when set", async () => {
+    vi.stubEnv("VITE_APP_API_BASE_URL", "https://api.example.com/");
+    vi.resetModules();
+    const { apiFetch: apiFetchWithBase } = await import("./api.js");
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apiFetchWithBase("/api/users/me");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.example.com/api/users/me",
+      expect.objectContaining({ headers: expect.any(Object) }),
+    );
   });
 
   it("propagates network failures as ApiError when no fallback is provided", async () => {

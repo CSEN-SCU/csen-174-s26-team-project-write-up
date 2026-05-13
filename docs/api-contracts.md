@@ -67,7 +67,7 @@ Guardrails (see `backend/coaching-api/src/coach/guardrails.js`): drop malformed 
 ```
 
 ## Coaching API (`http://localhost:8787`)
-Node service for RAG/LLM coaching. Intended to sit **behind** app-api in production (not called directly by browsers).
+Node service for RAG/LLM coaching. Intended to sit **behind** app-api in production (not called directly by browsers). Every request must include header **`X-Coaching-Internal-Secret`** matching env **`COACHING_INTERNAL_SECRET`** (same value as app-api). The process listens on **`127.0.0.1`** by default; set **`COACHING_LISTEN_HOST`** only if you need a non-default bind (uncommon—keep the internal secret strong).
 
 - `POST /coach` — JSON body: see `backend/coaching-api/src/coach/run-coach.js`. Required: `text` (unless MCP mode fills it), **`userId`** (non-empty, not `anonymous`; app-api overwrites from auth). Optional: `surface`, `focus` (string[]), **`goals`** (string, trimmed to 300 chars), **`audience`** (string, 200), **`tonePreference`** (`"formal"` | `"neutral"` | `"casual"`; invalid values → `neutral`). **MCP / Google Docs:** with `use_mcp: true` and `doc_id`, `text` may be empty; coaching-api loads content using `GOOGLE_DOCS_ACCESS_TOKEN` or `GOOGLE_DOCS_MCP_BRIDGE_URL` (see `docs/mcp-google-cloud-testing.md`). Per-user prior drafts are retrieved from the server-side profile store (rolling history) and merged into RAG context when available.
 - `POST /dismiss` — JSON body includes `userId` and dismiss payload; updates coaching profile store.
@@ -94,6 +94,7 @@ These routes require a **Firebase ID token** (`Authorization: Bearer <id_token>`
 
 ## App API → Coaching API (server-to-server)
 - Base URL: **`COACHING_API_BASE_URL`** on app-api (default `http://127.0.0.1:8787`; see root `.env.example` and `backend/app-api/.env.example`).
+- **`X-Coaching-Internal-Secret`**: app-api sends **`COACHING_INTERNAL_SECRET`** on every upstream `POST`; coaching-api rejects requests without a matching value.
 - Method: **`POST`** to `/coach` or `/dismiss` with `Content-Type: application/json`, `Accept: application/json`.
 - **`X-Request-Id`**: forwarded from the client request when present; otherwise app-api generates one for the upstream call. Coaching-api threads this into opt-in **`COACH_LOG_LLM`** stderr JSON (`requestId` field) so logs align with app-api **`APP_COACH_PROXY_LOG`** lines (`[coach-proxy]` / `[coach-llm]`); see `backend/app-api/README.md`.
 - Response: app-api returns coaching-api’s JSON body and HTTP status when the upstream response is JSON; network/timeout/non-JSON failures map to app-api errors (`coaching_upstream`, `coaching_timeout`, `coaching_bad_response`).

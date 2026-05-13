@@ -21,6 +21,19 @@ log = logging.getLogger(__name__)
 
 bp = Blueprint("coach_proxy", __name__)
 
+_COACHING_INTERNAL_HEADER = "X-Coaching-Internal-Secret"
+
+
+def _coaching_internal_secret() -> str:
+    s = os.environ.get("COACHING_INTERNAL_SECRET", "").strip()
+    if not s:
+        raise ApiError(
+            "server_misconfigured",
+            503,
+            "Set COACHING_INTERNAL_SECRET on app-api (same value as coaching-api).",
+        )
+    return s
+
 
 def _coaching_base_url() -> str:
     return os.environ.get("COACHING_API_BASE_URL", "http://127.0.0.1:8787").strip().rstrip("/")
@@ -76,6 +89,7 @@ def _forward_post(path: str, payload: dict[str, Any]) -> tuple[Any, int]:
             "Content-Type": "application/json",
             "Accept": "application/json",
             "X-Request-Id": rid,
+            _COACHING_INTERNAL_HEADER: _coaching_internal_secret(),
         },
         method="POST",
     )

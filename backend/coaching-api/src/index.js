@@ -1,15 +1,20 @@
 ﻿import "dotenv/config";
 import express from "express";
-import cors from "cors";
 import { loadKnowledge, getChunkCount, hasSpellAugment } from "./rag/index.js";
 import { applyDismiss, loadProfile, summarizeProfile, summarizeDraftsIndex } from "./profile/index.js";
 import { runCoach } from "./coach/run-coach.js";
 import { resolveCoachLlmAttempts } from "./llm/index.js";
 import { coachLogLlmEnabled, coachLogLlmFullBodies, coachLogLlmPreviewLimit } from "./llm/log.js";
+import {
+  assertCoachingInternalSecretConfigured,
+  requireCoachingInternalSecret,
+} from "./middleware/internal-secret.js";
+
+const internalSecret = assertCoachingInternalSecretConfigured();
 
 const app = express();
-app.use(cors());
 app.use(express.json({ limit: "512kb" }));
+app.use(requireCoachingInternalSecret(internalSecret));
 
 app.get("/", (_req, res) => {
   res.type("html").send(`<!DOCTYPE html>
@@ -17,8 +22,9 @@ app.get("/", (_req, res) => {
 <head><meta charset="utf-8"/><title>Write Up coaching-api</title></head>
 <body>
   <p><strong>coaching-api</strong> is running. There is no web UI on this port.</p>
+  <p>Every route requires header <code>X-Coaching-Internal-Secret</code> (see <code>COACHING_INTERNAL_SECRET</code> in <code>.env.example</code>).</p>
   <ul>
-    <li><a href="/health">GET /health</a> — status, RAG chunk count, LLM config</li>
+    <li><code>GET /health</code> — status, RAG chunk count, LLM config</li>
     <li>POST /coach — JSON body: <code>{"text":"...","userId":"stable-id",...}</code> (optional <code>goals</code>, <code>audience</code>, <code>tonePreference</code>: formal|neutral|casual) or MCP mode <code>{"use_mcp":true,"doc_id":"…","userId":"…","text":""}</code> with <code>GOOGLE_DOCS_ACCESS_TOKEN</code> or <code>GOOGLE_DOCS_MCP_BRIDGE_URL</code> set on the server</li>
     <li>POST /dismiss — optional feedback dismiss events</li>
     <li>GET /profile/:userId — stored coaching profile and per-user draft index</li>
@@ -100,9 +106,12 @@ app.get("/profile/:userId", async (req, res) => {
 });
 
 const port = Number(process.env.PORT || 8787);
+const listenHost = (process.env.COACHING_LISTEN_HOST || "127.0.0.1").trim() || "127.0.0.1";
 
 await loadKnowledge().catch((e) => {
   console.error("Failed to load RAG corpus:", e);
 });
 
-app.listen(port, () => console.log(`coaching-api on http://localhost:${port}`));
+app.listen(port, listenHost, () =>
+  console.log(`coaching-api on http://${listenHost}:${port} (internal secret required)`),
+);
