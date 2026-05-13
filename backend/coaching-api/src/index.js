@@ -9,6 +9,7 @@ import {
   assertCoachingInternalSecretConfigured,
   requireCoachingInternalSecret,
 } from "./middleware/internal-secret.js";
+import { coachPostRateLimiter, dismissPostRateLimiter } from "./middleware/coach-rate-limit.js";
 
 const internalSecret = assertCoachingInternalSecretConfigured();
 
@@ -53,7 +54,7 @@ app.get("/health", (_req, res) => {
   });
 });
 
-app.post("/coach", async (req, res) => {
+app.post("/coach", coachPostRateLimiter, async (req, res) => {
   try {
     const requestId = String(req.get("x-request-id") || "").trim() || undefined;
     const result = await runCoach(req.body || {}, { requestId });
@@ -67,7 +68,7 @@ app.post("/coach", async (req, res) => {
   }
 });
 
-app.post("/dismiss", async (req, res) => {
+app.post("/dismiss", dismissPostRateLimiter, async (req, res) => {
   try {
     const { userId = "anonymous", ...rest } = req.body || {};
     const profileSnapshot = await applyDismiss(userId, rest);

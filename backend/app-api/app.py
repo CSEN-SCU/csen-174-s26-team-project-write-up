@@ -11,6 +11,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from errors import ApiError
+from extensions import limiter
+from flask_limiter.errors import RateLimitExceeded
 from routes.users import bp as users_bp
 from routes.onboarding import bp as onboarding_bp
 from routes.feedback_history import bp as history_bp
@@ -66,6 +68,7 @@ def _cors_allowed_origins() -> list[str]:
 
 
 app = Flask(__name__)
+limiter.init_app(app)
 _cors_origins = _cors_allowed_origins()
 CORS(app, resources={r"/*": {"origins": _cors_origins}})
 
@@ -76,6 +79,18 @@ app.register_blueprint(dismissals_bp)
 app.register_blueprint(prefs_bp)
 app.register_blueprint(oauth_bp)
 app.register_blueprint(coach_proxy_bp)
+
+
+@app.errorhandler(RateLimitExceeded)
+def _handle_rate_limited(_err):
+    return (
+        jsonify(
+            ok=False,
+            error="rate_limited",
+            message="Too many requests. Try again in a minute.",
+        ),
+        429,
+    )
 
 
 @app.errorhandler(ApiError)

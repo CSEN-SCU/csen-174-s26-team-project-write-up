@@ -67,7 +67,7 @@ Guardrails (see `backend/coaching-api/src/coach/guardrails.js`): drop malformed 
 ```
 
 ## Coaching API (`http://localhost:8787`)
-Node service for RAG/LLM coaching. Intended to sit **behind** app-api in production (not called directly by browsers). Every request must include header **`X-Coaching-Internal-Secret`** matching env **`COACHING_INTERNAL_SECRET`** (same value as app-api). The process listens on **`127.0.0.1`** by default; set **`COACHING_LISTEN_HOST`** only if you need a non-default bind (uncommon—keep the internal secret strong).
+Node service for RAG/LLM coaching. Intended to sit **behind** app-api in production (not called directly by browsers). Every request must include header **`X-Coaching-Internal-Secret`** matching env **`COACHING_INTERNAL_SECRET`** (same value as app-api). The process listens on **`127.0.0.1`** by default; set **`COACHING_LISTEN_HOST`** only if you need a non-default bind (uncommon—keep the internal secret strong). **`POST /coach`** and **`POST /dismiss`** are additionally **rate limited** per client IP + JSON `userId` (defaults **`COACHING_COACH_RATE_PER_MINUTE`** = 25, **`COACHING_DISMISS_RATE_PER_MINUTE`** = 120).
 
 - `POST /coach` — JSON body: see `backend/coaching-api/src/coach/run-coach.js`. Required: `text` (unless MCP mode fills it), **`userId`** (non-empty, not `anonymous`; app-api overwrites from auth). Optional: `surface`, `focus` (string[]), **`goals`** (string, trimmed to 300 chars), **`audience`** (string, 200), **`tonePreference`** (`"formal"` | `"neutral"` | `"casual"`; invalid values → `neutral`). **MCP / Google Docs:** with `use_mcp: true` and `doc_id`, `text` may be empty; coaching-api loads content using `GOOGLE_DOCS_ACCESS_TOKEN` or `GOOGLE_DOCS_MCP_BRIDGE_URL` (see `docs/mcp-google-cloud-testing.md`). Per-user prior drafts are retrieved from the server-side profile store (rolling history) and merged into RAG context when available.
 - `POST /dismiss` — JSON body includes `userId` and dismiss payload; updates coaching profile store.
@@ -89,8 +89,8 @@ Node service for RAG/LLM coaching. Intended to sit **behind** app-api in product
 ### Coach proxy (authenticated → coaching-api)
 These routes require a **Firebase ID token** (`Authorization: Bearer <id_token>`), unless app-api is running in the documented dev-only bypass (`APP_AUTH_BYPASS` + `APP_ENV` — see root `.env.example`).
 
-- `POST /coach` — Accepts the same JSON fields clients would send to coaching-api `POST /coach`. **`userId` in the body is ignored for authorization**: app-api **overwrites** `userId` with the verified uid before forwarding.
-- `POST /dismiss` — Same auth and **`userId` overwrite**; forwards to coaching-api `POST /dismiss`.
+- `POST /coach` — Accepts the same JSON fields clients would send to coaching-api `POST /coach`. **`userId` in the body is ignored for authorization**: app-api **overwrites** `userId` with the verified uid before forwarding. **Rate limited** per verified user (default **20/min**, env **`APP_COACH_RATE_LIMIT`**); over limit → **429** JSON `error: "rate_limited"`.
+- `POST /dismiss` — Same auth and **`userId` overwrite**; forwards to coaching-api `POST /dismiss`. **Rate limited** per user (default **60/min**, **`APP_DISMISS_RATE_LIMIT`**).
 
 ## App API → Coaching API (server-to-server)
 - Base URL: **`COACHING_API_BASE_URL`** on app-api (default `http://127.0.0.1:8787`; see root `.env.example` and `backend/app-api/.env.example`).

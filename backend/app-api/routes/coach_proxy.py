@@ -13,9 +13,11 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from flask import Blueprint, g, jsonify, request
+from flask_limiter.util import get_remote_address
 
 from auth import require_auth
 from errors import ApiError
+from extensions import limiter
 
 log = logging.getLogger(__name__)
 
@@ -155,8 +157,24 @@ def _force_uid_payload() -> dict[str, Any]:
     return out
 
 
+def _authenticated_user_limit_key() -> str:
+    uid = getattr(g, "user_id", None)
+    if uid is not None:
+        return f"uid:{uid}"
+    return f"ip:{get_remote_address()}"
+
+
+def _coach_rate_limit_string() -> str:
+    return os.environ.get("APP_COACH_RATE_LIMIT", "20 per minute").strip() or "20 per minute"
+
+
+def _dismiss_rate_limit_string() -> str:
+    return os.environ.get("APP_DISMISS_RATE_LIMIT", "60 per minute").strip() or "60 per minute"
+
+
 @bp.post("/coach")
 @require_auth
+@limiter.limit(_coach_rate_limit_string(), key_func=_authenticated_user_limit_key)
 def proxy_coach():
     payload = _force_uid_payload()
     data, status = _forward_post("/coach", payload)
@@ -165,6 +183,7 @@ def proxy_coach():
 
 @bp.post("/dismiss")
 @require_auth
+@limiter.limit(_dismiss_rate_limit_string(), key_func=_authenticated_user_limit_key)
 def proxy_dismiss():
     payload = _force_uid_payload()
     data, status = _forward_post("/dismiss", payload)
