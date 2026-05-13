@@ -71,7 +71,7 @@ Node service for RAG/LLM coaching. Intended to sit **behind** app-api in product
 
 - `POST /coach` — JSON body: see `backend/coaching-api/src/coach/run-coach.js`. Required: `text` (unless MCP mode fills it), **`userId`** (non-empty, not `anonymous`; app-api overwrites from auth). Optional: `surface`, `focus` (string[]), **`goals`** (string, trimmed to 300 chars), **`audience`** (string, 200), **`tonePreference`** (`"formal"` | `"neutral"` | `"casual"`; invalid values → `neutral`). **MCP / Google Docs:** with `use_mcp: true` and `doc_id`, `text` may be empty; coaching-api loads content using `GOOGLE_DOCS_ACCESS_TOKEN` or `GOOGLE_DOCS_MCP_BRIDGE_URL` (see `docs/mcp-google-cloud-testing.md`). Per-user prior drafts are retrieved from the server-side profile store (rolling history) and merged into RAG context when available.
 - `POST /dismiss` — JSON body includes `userId` and dismiss payload; updates coaching profile store.
-- `GET /profile/:userId` — read-only profile snapshot, pattern notes, and **`draftsIndex`** / **`draftCount`** (metadata for stored per-user draft snippets used in retrieval; full text is not returned).
+- **Profile data** is read and updated only inside `POST /coach` / `POST /dismiss` (no `GET /profile/:userId` HTTP surface).
 
 ## App API (`http://localhost:5050`)
 ### Auth and user data

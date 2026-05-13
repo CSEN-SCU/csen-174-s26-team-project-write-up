@@ -192,12 +192,6 @@ export async function appendUserDraft(userId, text) {
   await fs.writeFile(PROFILE_PATH, JSON.stringify(store, null, 2), "utf8");
 }
 
-/** @param {string} userId */
-export async function loadProfile(userId) {
-  const store = await readProfileStore();
-  return store[userId] || null;
-}
-
 /** @param {string} userId @param {object} event */
 export async function applyDismiss(userId, event) {
   await ensureDataDir();
