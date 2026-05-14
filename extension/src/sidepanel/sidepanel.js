@@ -13,6 +13,11 @@ async function buildAppApiHeaders() {
   return h;
 }
 
+function isExtensionContextInvalidated(err) {
+  const m = err && (err.message || String(err));
+  return typeof m === "string" && m.includes("Extension context invalidated");
+}
+
 function coachPersonalizationPayload() {
   const d = globalThis.writeUpDefaultCoachPersonalization;
   if (d && typeof d === "object") return { ...d };
@@ -57,38 +62,51 @@ function selectedFocus() {
 
 function persistLiveSettings() {
   if (!chrome?.storage?.local) return;
-  chrome.storage.local.set({
-    docsLiveEnabled: !!docsLiveEnabled?.checked,
-    docsLiveUseMcp: !!docsLiveUseMcp?.checked,
-    docsLiveFocus: selectedFocus(),
-  });
+  try {
+    chrome.storage.local.set({
+      docsLiveEnabled: !!docsLiveEnabled?.checked,
+      docsLiveUseMcp: !!docsLiveUseMcp?.checked,
+      docsLiveFocus: selectedFocus(),
+    });
+  } catch (_) {
+    /* e.g. Extension context invalidated after reload */
+  }
 }
 
 function hydrateLiveSettings() {
   if (!chrome?.storage?.local) return;
-  chrome.storage.local.get(
-    {
-      docsLiveEnabled: false,
-      docsLiveUseMcp: false,
-      docsLiveFocus: ["vocabulary", "tone"],
-      liveDocsStatus: "",
-      liveDocsFeedback: "",
-      liveDocsUpdatedAt: 0,
-    },
-    (state) => {
-      if (docsLiveEnabled) docsLiveEnabled.checked = !!state.docsLiveEnabled;
-      if (docsLiveUseMcp) docsLiveUseMcp.checked = !!state.docsLiveUseMcp;
-      if (Array.isArray(state.docsLiveFocus)) {
-        document.querySelectorAll('input[name="focus"]').forEach((el) => {
-          el.checked = state.docsLiveFocus.includes(el.value);
-        });
-      }
-      renderLiveStatus(state.liveDocsStatus, state.liveDocsUpdatedAt);
-      if (docsLiveOutput && state.liveDocsFeedback) {
-        docsLiveOutput.textContent = state.liveDocsFeedback;
-      }
-    }
-  );
+  try {
+    chrome.storage.local.get(
+      {
+        docsLiveEnabled: false,
+        docsLiveUseMcp: false,
+        docsLiveFocus: ["vocabulary", "tone"],
+        liveDocsStatus: "",
+        liveDocsFeedback: "",
+        liveDocsUpdatedAt: 0,
+      },
+      (state) => {
+        try {
+          if (chrome.runtime.lastError) return;
+          if (docsLiveEnabled) docsLiveEnabled.checked = !!state.docsLiveEnabled;
+          if (docsLiveUseMcp) docsLiveUseMcp.checked = !!state.docsLiveUseMcp;
+          if (Array.isArray(state.docsLiveFocus)) {
+            document.querySelectorAll('input[name="focus"]').forEach((el) => {
+              el.checked = state.docsLiveFocus.includes(el.value);
+            });
+          }
+          renderLiveStatus(state.liveDocsStatus, state.liveDocsUpdatedAt);
+          if (docsLiveOutput && state.liveDocsFeedback) {
+            docsLiveOutput.textContent = state.liveDocsFeedback;
+          }
+        } catch (_) {
+          /* Extension context invalidated */
+        }
+      },
+    );
+  } catch (_) {
+    /* Extension context invalidated */
+  }
 }
 
 function renderLiveStatus(statusText, updatedAt) {
@@ -229,9 +247,14 @@ async function runFeedback() {
     await loadWordBank();
   } catch (e) {
     output.classList.add("is-error");
-    output.textContent =
-      (e && e.message) ||
-      "Could not reach app-api at http://127.0.0.1:5050 (coach proxy). Run `npm run dev:app` and `npm run dev:coach` from the repo root.";
+    if (isExtensionContextInvalidated(e)) {
+      output.textContent =
+        "Extension was reloaded. Close this side panel, click the Write Up toolbar icon again, then retry.";
+    } else {
+      output.textContent =
+        (e && e.message) ||
+        "Could not reach app-api at http://127.0.0.1:5050 (coach proxy). Run `npm run dev:app` and `npm run dev:coach` from the repo root.";
+    }
     statusLine.textContent = "Network error";
   } finally {
     submitBtn.disabled = false;
@@ -276,16 +299,25 @@ docsLiveUseMcp?.addEventListener("change", persistLiveSettings);
 
 if (chrome?.storage?.onChanged) {
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== "local") return;
-    if (changes.liveDocsFeedback && docsLiveOutput) {
-      docsLiveOutput.textContent = changes.liveDocsFeedback.newValue || "";
-    }
-    if (changes.liveDocsStatus || changes.liveDocsUpdatedAt) {
-      const statusText = changes.liveDocsStatus?.newValue;
-      const updatedAt = changes.liveDocsUpdatedAt?.newValue;
-      chrome.storage.local.get({ liveDocsStatus: "", liveDocsUpdatedAt: 0 }, (state) => {
-        renderLiveStatus(statusText ?? state.liveDocsStatus, updatedAt ?? state.liveDocsUpdatedAt);
-      });
+    try {
+      if (areaName !== "local") return;
+      if (changes.liveDocsFeedback && docsLiveOutput) {
+        docsLiveOutput.textContent = changes.liveDocsFeedback.newValue || "";
+      }
+      if (changes.liveDocsStatus || changes.liveDocsUpdatedAt) {
+        const statusText = changes.liveDocsStatus?.newValue;
+        const updatedAt = changes.liveDocsUpdatedAt?.newValue;
+        chrome.storage.local.get({ liveDocsStatus: "", liveDocsUpdatedAt: 0 }, (state) => {
+          try {
+            if (chrome.runtime.lastError) return;
+            renderLiveStatus(statusText ?? state.liveDocsStatus, updatedAt ?? state.liveDocsUpdatedAt);
+          } catch (_) {
+            /* ignore */
+          }
+        });
+      }
+    } catch (_) {
+      /* Extension context invalidated */
     }
   });
 }

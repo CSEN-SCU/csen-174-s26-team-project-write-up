@@ -24,36 +24,62 @@
       const base = String(root.writeUpApiBaseForDebug || "");
       const isLocal = /127\.0\.0\.1|localhost/i.test(base);
 
-      if (!chrome?.storage?.local) {
+      const fallback = () => {
         const h = { "Content-Type": "application/json" };
         if (isLocal) h["X-Debug-User"] = LEGACY_DEBUG_UID;
         resolve(h);
+      };
+
+      if (!chrome?.storage?.local) {
+        fallback();
         return;
       }
 
-      chrome.storage.local.get({ firebaseIdToken: "", [STORAGE_DEBUG_UID]: "" }, (s) => {
-        const h = { "Content-Type": "application/json" };
-        if (s.firebaseIdToken) {
-          h.Authorization = `Bearer ${s.firebaseIdToken}`;
-          resolve(h);
-          return;
-        }
-        if (!isLocal) {
-          resolve(h);
-          return;
-        }
-        let uid = String(s[STORAGE_DEBUG_UID] || "").trim();
-        if (uid) {
-          h["X-Debug-User"] = uid;
-          resolve(h);
-          return;
-        }
-        uid = randomUid();
-        chrome.storage.local.set({ [STORAGE_DEBUG_UID]: uid }, () => {
-          h["X-Debug-User"] = uid;
-          resolve(h);
+      try {
+        chrome.storage.local.get({ firebaseIdToken: "", [STORAGE_DEBUG_UID]: "" }, (s) => {
+          try {
+            if (chrome.runtime.lastError) {
+              fallback();
+              return;
+            }
+            const h = { "Content-Type": "application/json" };
+            if (s.firebaseIdToken) {
+              h.Authorization = `Bearer ${s.firebaseIdToken}`;
+              resolve(h);
+              return;
+            }
+            if (!isLocal) {
+              resolve(h);
+              return;
+            }
+            let uid = String(s[STORAGE_DEBUG_UID] || "").trim();
+            if (uid) {
+              h["X-Debug-User"] = uid;
+              resolve(h);
+              return;
+            }
+            uid = randomUid();
+            try {
+              chrome.storage.local.set({ [STORAGE_DEBUG_UID]: uid }, () => {
+                if (chrome.runtime.lastError) {
+                  h["X-Debug-User"] = LEGACY_DEBUG_UID;
+                  resolve(h);
+                  return;
+                }
+                h["X-Debug-User"] = uid;
+                resolve(h);
+              });
+            } catch (_) {
+              h["X-Debug-User"] = LEGACY_DEBUG_UID;
+              resolve(h);
+            }
+          } catch (_) {
+            fallback();
+          }
         });
-      });
+      } catch (_) {
+        fallback();
+      }
     });
   };
 
@@ -63,7 +89,14 @@
         resolve();
         return;
       }
-      chrome.storage.local.remove(["firebaseIdToken"], resolve);
+      try {
+        chrome.storage.local.remove(["firebaseIdToken"], () => {
+          void chrome.runtime.lastError;
+          resolve();
+        });
+      } catch (_) {
+        resolve();
+      }
     });
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);
