@@ -1,7 +1,5 @@
 ﻿import { useState } from "react";
-
-const DUMMY_JOINED_LABEL = "When you joined";
-const DUMMY_JOINED_VALUE = "March 4, 2026";
+import { useAuth } from "../auth/AuthContext";
 
 const STAT_ROWS = [
   { label: "Corrections you confirmed", value: "47" },
@@ -18,103 +16,89 @@ const DEFAULT_PREFS = {
   explainCorrections: true,
 };
 
+function formatJoined(isoOrMillis) {
+  if (!isoOrMillis) return "—";
+  const d = new Date(isoOrMillis);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
 export default function Profile() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [signedIn, setSignedIn] = useState(false);
+  const { user, loading, signInWithGoogle, signOut, serverProfile, meLoading, meError } = useAuth();
+  const [googleError, setGoogleError] = useState(null);
   const [writingLevel, setWritingLevel] = useState(DEFAULT_PREFS.writingLevel);
   const [feedbackTone, setFeedbackTone] = useState(DEFAULT_PREFS.feedbackTone);
   const [focusArea, setFocusArea] = useState(DEFAULT_PREFS.focusArea);
   const [explainCorrections, setExplainCorrections] = useState(DEFAULT_PREFS.explainCorrections);
 
-  const canSubmit = email.trim().length > 0 && password.length > 0;
-  const displayName = signedIn ? email.trim().split("@")[0].replace(/\./g, " ") || "writer" : "";
+  const email = user?.email?.trim() || "";
+  const displayName =
+    user?.displayName?.trim() ||
+    (email ? email.split("@")[0].replace(/\./g, " ") : "") ||
+    (user?.uid ? `User ${user.uid.slice(0, 8)}` : "");
+  const initial = displayName.slice(0, 1).toUpperCase() || "?";
+  const photoURL = user?.photoURL || "";
 
-  function handleSignIn(e) {
-    e.preventDefault();
-    if (!canSubmit) return;
-    setSignedIn(true);
+  async function handleGoogleSignIn() {
+    setGoogleError(null);
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      const code = e?.code || (e instanceof Error ? e.message : "sign_in_failed");
+      setGoogleError(code);
+    }
   }
 
-  function handleSignOut() {
-    setSignedIn(false);
-    setPassword("");
-    setWritingLevel(DEFAULT_PREFS.writingLevel);
-    setFeedbackTone(DEFAULT_PREFS.feedbackTone);
-    setFocusArea(DEFAULT_PREFS.focusArea);
-    setExplainCorrections(DEFAULT_PREFS.explainCorrections);
+  if (loading) {
+    return (
+      <section className="page profile-page">
+        <div className="dashboard__inner dashboard__inner--wide">
+          <p className="profile-page__lede">Checking session…</p>
+        </div>
+      </section>
+    );
   }
 
   return (
     <section className="page profile-page">
       <div className="dashboard__inner dashboard__inner--wide">
-        {!signedIn ? (
+        {!user ? (
           <div className="profile-page__sign-in-shell">
             <header className="profile-page__sign-header">
               <p className="dashboard__eyebrow">Your account</p>
               <h2 className="profile-page__title">Profile</h2>
               <p className="profile-page__lede">
-                Sign in to preview how progress and activity will appear. No account is created—this is layout-only for now.
+                Sign in with Google to sync your Write Up profile to the server and see your account details here.
               </p>
             </header>
 
-            <form className="profile-page__sign-card" onSubmit={handleSignIn} aria-labelledby="profile-sign-heading">
-              <h3 id="profile-sign-heading" className="profile-page__card-title">
-                Sign in
-              </h3>
-              <label className="profile-page__label" htmlFor="profile-email">
-                Email
-              </label>
-              <input
-                id="profile-email"
-                className="profile-page__input"
-                type="email"
-                name="email"
-                autoComplete="username"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@school.edu"
-              />
-
-              <label className="profile-page__label" htmlFor="profile-password">
-                Password
-              </label>
-              <input
-                id="profile-password"
-                className="profile-page__input"
-                type="password"
-                name="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter any text for demo"
-              />
-
+            <div className="profile-page__sign-card">
+              <h3 className="profile-page__card-title">Sign in</h3>
               <button
+                type="button"
                 className="profile-page__submit dashboard__btn dashboard__btn--primary"
-                type="submit"
-                disabled={!canSubmit}
+                onClick={handleGoogleSignIn}
               >
-                Sign in
+                Sign in with Google
               </button>
-              {!canSubmit && (
-                <p className="profile-page__hint">
-                  Fill in email and password, then tap Sign in to load sample profile data.
+              <p className="profile-page__hint">You can also use Sign in in the top bar.</p>
+              {googleError && (
+                <p className="profile-page__hint" role="alert">
+                  {googleError}
                 </p>
               )}
-            </form>
+            </div>
           </div>
         ) : (
           <div className="profile-page__signed-shell">
             <header className="profile-page__signed-header">
               <div className="profile-page__heading-block">
-                <p className="dashboard__eyebrow">Signed-in preview</p>
+                <p className="dashboard__eyebrow">Your account</p>
                 <h2 className="profile-page__title">Profile</h2>
               </div>
               <button
                 type="button"
                 className="profile-page__sign-out dashboard__btn dashboard__btn--ghost"
-                onClick={handleSignOut}
+                onClick={() => signOut()}
               >
                 Sign out
               </button>
@@ -123,17 +107,46 @@ export default function Profile() {
             <div className="profile-page__grid">
               <div className="profile-page__user-stack">
                 <aside className="profile-page__panel profile-page__panel--identity">
-                  <div className="profile-page__avatar" aria-hidden="true">
-                    {displayName.slice(0, 1).toUpperCase()}
+                  <div
+                    className={`profile-page__avatar${photoURL ? " profile-page__avatar--photo" : ""}`}
+                    aria-hidden="true"
+                  >
+                    {photoURL ? (
+                      <img src={photoURL} alt="" className="profile-page__avatar-img" referrerPolicy="no-referrer" />
+                    ) : (
+                      initial
+                    )}
                   </div>
                   <p className="profile-page__name">{displayName}</p>
-                  <p className="profile-page__email-line">{email.trim()}</p>
+                  <p className="profile-page__email-line">{email || "No email on this account"}</p>
                   <dl className="profile-page__joined">
-                    <dt>{DUMMY_JOINED_LABEL}</dt>
-                    <dd>{DUMMY_JOINED_VALUE}</dd>
+                    <dt>Account created</dt>
+                    <dd>{formatJoined(user.metadata?.creationTime)}</dd>
                   </dl>
+                  {meLoading && (
+                    <p className="profile-page__email-line" aria-live="polite">
+                      Syncing profile with server…
+                    </p>
+                  )}
+                  {meError && (
+                    <p className="profile-page__hint" role="alert">
+                      Could not load server profile ({meError}). Check that app-api is running and reachable.
+                    </p>
+                  )}
+                  {!meLoading && serverProfile && Object.keys(serverProfile).length > 0 && (
+                    <dl className="profile-page__joined">
+                      <dt>Onboarding</dt>
+                      <dd>{serverProfile.onboardingComplete ? "Complete" : "Not completed"}</dd>
+                      {serverProfile.createdAt && (
+                        <>
+                          <dt>Profile stored</dt>
+                          <dd>{formatJoined(serverProfile.createdAt)}</dd>
+                        </>
+                      )}
+                    </dl>
+                  )}
                   <div className="dashboard__ribbon" aria-hidden="true">
-                    <span>Sample metrics · Replace with Firestore/App API counts later</span>
+                    <span>Learning snapshot below is sample data until wired to analytics</span>
                   </div>
                 </aside>
 
@@ -160,7 +173,8 @@ export default function Profile() {
                   Writing preferences
                 </h3>
                 <p className="profile-page__customize-lede">
-                  Tune how the coach frames feedback. These controls are preview-only until the app saves them to your account.
+                  Tune how the coach frames feedback. These controls are preview-only until the app saves them to your
+                  account.
                 </p>
 
                 <div className="profile-page__customize-fields">

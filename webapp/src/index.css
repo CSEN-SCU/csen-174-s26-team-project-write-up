@@ -907,6 +907,18 @@ main { padding: 16px; }
   border: 1px solid rgba(95, 109, 88, 0.28);
 }
 
+.page.profile-page .profile-page__avatar--photo {
+  padding: 0;
+  overflow: hidden;
+}
+
+.page.profile-page .profile-page__avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .page.profile-page .profile-page__name {
   margin: 0 0 var(--space-2);
   font-family: var(--font-display);
