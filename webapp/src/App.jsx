@@ -5,6 +5,7 @@ import Onboarding from "./pages/Onboarding";
 import History from "./pages/History";
 import Profile from "./pages/Profile";
 import ExtensionAuth from "./pages/ExtensionAuth";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 function TopbarAuth() {
   const { user, loading, signInWithGoogle, signOut } = useAuth();
@@ -43,6 +44,7 @@ export default function App() {
             <Link to="/history">History</Link>
             <Link to="/profile">Profile</Link>
             <Link to="/extension-auth">Extension</Link>
+            <Link to="/privacy">Privacy Policy</Link>
             <TopbarAuth />
           </nav>
         </header>
@@ -53,6 +55,7 @@ export default function App() {
             <Route path="/history" element={<History />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/extension-auth" element={<ExtensionAuth />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
           </Routes>
         </main>
       </BrowserRouter>
