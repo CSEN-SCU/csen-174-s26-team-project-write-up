@@ -19,8 +19,8 @@ export function assertCoachingInternalSecretConfigured() {
 }
 
 function internalSecretsMatch(expected, received) {
-  const a = Buffer.from(String(received), "utf8");
-  const b = Buffer.from(String(expected), "utf8");
+  const a = Buffer.from(String(received).trim(), "utf8");
+  const b = Buffer.from(String(expected).trim(), "utf8");
   if (a.length === 0 || a.length !== b.length) {
     return false;
   }
@@ -37,6 +37,9 @@ export function requireCoachingInternalSecret(expectedSecret) {
       return res.status(401).json({
         error: "unauthorized",
         message: "Missing or invalid internal coaching credential.",
+        hint:
+          "Send header X-Coaching-Internal-Secret with the same value as COACHING_INTERNAL_SECRET in your .env. " +
+          "Apps should call app-api POST /coach on port 5050 (it adds this header); do not call coaching-api :8787 from a browser without the header.",
       });
     }
     next();

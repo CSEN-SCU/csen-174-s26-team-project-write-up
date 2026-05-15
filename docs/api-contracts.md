@@ -67,12 +67,12 @@ Guardrails (see `backend/coaching-api/src/coach/guardrails.js`): drop malformed 
 ```
 
 ## Coaching API (`http://localhost:8787`)
-Node service for RAG/LLM coaching. Intended to sit **behind** app-api in production (not called directly by browsers). Every request must include header **`X-Coaching-Internal-Secret`** matching env **`COACHING_INTERNAL_SECRET`** (same value as app-api). The process listens on **`127.0.0.1`** by default; set **`COACHING_LISTEN_HOST`** only if you need a non-default bind (uncommon—keep the internal secret strong). **`POST /coach`** and **`POST /dismiss`** are additionally **rate limited** per client IP + JSON `userId` (defaults **`COACHING_COACH_RATE_PER_MINUTE`** = 25, **`COACHING_DISMISS_RATE_PER_MINUTE`** = 120).
+Node service for RAG/LLM coaching. Intended to sit **behind** app-api in production (not called directly by browsers). **`GET /`** and **`GET /health`** are public (landing HTML and liveness). All other routes require header **`X-Coaching-Internal-Secret`** matching env **`COACHING_INTERNAL_SECRET`** (same value as app-api). The process listens on **`127.0.0.1`** by default; set **`COACHING_LISTEN_HOST`** only if you need a non-default bind (uncommon—keep the internal secret strong). **`POST /coach`** and **`POST /dismiss`** are additionally **rate limited** per client IP + JSON `userId` (defaults **`COACHING_COACH_RATE_PER_MINUTE`** = 25, **`COACHING_DISMISS_RATE_PER_MINUTE`** = 120).
 
 - `POST /coach` — JSON body: see `backend/coaching-api/src/coach/run-coach.js`. Required: `text` (unless MCP mode fills it), **`userId`** (non-empty, not `anonymous`; app-api overwrites from auth). Optional: `surface`, `focus` (string[]), **`goals`** (string, trimmed to 300 chars), **`audience`** (string, 200), **`tonePreference`** (`"formal"` | `"neutral"` | `"casual"`; invalid values → `neutral`). **MCP / Google Docs:** with `use_mcp: true` and `doc_id`, `text` may be empty; coaching-api loads content using `GOOGLE_DOCS_ACCESS_TOKEN` or `GOOGLE_DOCS_MCP_BRIDGE_URL` (see `docs/mcp-google-cloud-testing.md`). Per-user prior drafts are retrieved from the server-side profile store (rolling history) and merged into RAG context when available.
 - `POST /dismiss` — JSON body includes `userId` and dismiss payload; updates coaching profile store.
 - **Profile data** is read and updated only inside `POST /coach` / `POST /dismiss` (no `GET /profile/:userId` HTTP surface).
-- `GET /health` — **Liveness only:** `{"ok":true}` (still requires **`X-Coaching-Internal-Secret`** like every route).
+- `GET /health` — **Liveness only:** `{"ok":true}` (**no** internal secret header).
 - `GET /internal/diagnostics` — **Operators:** same secret header; returns LLM/RAG/MCP booleans and config (what `/health` used to expose).
 
 ## App API (`http://localhost:5050`)

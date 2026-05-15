@@ -154,14 +154,21 @@ export async function fetchDocumentPlainText(docId) {
 }
 
 /**
- * When use_mcp is true, load text from Google Docs API or MCP bridge; otherwise pass through body.text.
+ * Resolve draft text: if the client sends `use_mcp: true` but this server has no Docs API token
+ * or MCP bridge, treat as normal DOM `text` (extension checkbox does not imply server support).
+ * When MCP *is* configured and `use_mcp` is true, load from Google Docs API or bridge using `doc_id`.
  * @param {object} body
  * @returns {Promise<{ ok: true, text: string } | { ok: false, error: string, status: number }>}
  */
 export async function resolveCoachDraftText(body) {
-  const useMcp = asBool(body?.use_mcp);
+  const useMcpRequested = asBool(body?.use_mcp);
   const docId = String(body?.doc_id || body?.docId || "").trim();
   const rawText = typeof body?.text === "string" ? body.text : "";
+
+  const bridge = (process.env.GOOGLE_DOCS_MCP_BRIDGE_URL || "").trim();
+  const token = (process.env.GOOGLE_DOCS_ACCESS_TOKEN || "").trim();
+  const mcpConfigured = Boolean(bridge || token);
+  const useMcp = useMcpRequested && mcpConfigured;
 
   if (!useMcp) {
     return { ok: true, text: rawText };

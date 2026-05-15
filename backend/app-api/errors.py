@@ -33,8 +33,29 @@ class ApiError(Exception):
         super().__init__(message or code)
 
 
+class FirebaseNotConfiguredError(Exception):
+    """Raised when Firebase Admin was never initialized (missing service account env)."""
+
+
 def firestore_to_api_error(exc: Exception) -> ApiError:
+    if isinstance(exc, FirebaseNotConfiguredError):
+        log.warning("Firestore skipped: %s", exc)
+        return ApiError(
+            code="firestore_unconfigured",
+            status=503,
+            message=str(exc) or "Firebase credentials not configured",
+        )
     name = type(exc).__name__
+    if name == "DefaultCredentialsError":
+        log.warning(
+            "Firestore / Firebase ADC missing (set FIREBASE_CREDENTIALS_PATH or FIREBASE_SERVICE_ACCOUNT_JSON): %s",
+            exc,
+        )
+        return ApiError(
+            code="firestore_unconfigured",
+            status=503,
+            message="Application default credentials not configured",
+        )
     code, status = _FIRESTORE_ERROR_MAP.get(name, ("firestore_unavailable", 503))
     log.exception("Firestore error %s -> %s", name, code)
     return ApiError(code=code, status=status, message=name)

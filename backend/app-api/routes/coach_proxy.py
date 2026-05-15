@@ -104,6 +104,13 @@ def _forward_post(path: str, payload: dict[str, Any]) -> tuple[Any, int]:
     except HTTPError as e:
         raw = e.read().decode("utf-8", errors="replace") if e.fp else ""
         status = int(e.code or 502)
+        log.warning(
+            "Coaching upstream HTTP %s url=%s request_id=%s preview=%s",
+            status,
+            url,
+            rid,
+            (raw[:400] + "…") if len(raw) > 400 else raw,
+        )
     except TimeoutError as e:
         elapsed_ms = (time.perf_counter() - t0) * 1000
         log.warning(

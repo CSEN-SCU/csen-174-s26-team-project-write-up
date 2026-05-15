@@ -34,6 +34,7 @@
     },
     {
       "matches": ["https://docs.google.com/document/*"],
+      "all_frames": true,
       "js": [
         "src/lib/api-headers.js",
         "src/lib/coach-defaults.js",

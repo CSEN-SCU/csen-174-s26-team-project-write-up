@@ -11,6 +11,8 @@ from app import app
 @pytest.fixture(autouse=True)
 def _coaching_internal_secret_env(monkeypatch):
     monkeypatch.setenv("COACHING_INTERNAL_SECRET", "test-coaching-internal")
+    # Repo root .env often sets APP_AUTH_BYPASS=1 for local Chrome; these tests use Bearer + mocked verify.
+    monkeypatch.setenv("APP_AUTH_BYPASS", "0")
 
 
 @pytest.fixture

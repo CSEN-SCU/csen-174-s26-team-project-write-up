@@ -137,9 +137,19 @@ def update_user_preferences(user_id: str, prefs: dict[str, Any]) -> bool:
 
 def verify_google_token(token: str) -> dict:
     """Verify a Firebase ID token; returns uid/email/name or raises ApiError."""
+    import firebase_admin
     from firebase_admin import auth as fb_auth
 
     ensure_firebase_app()
+    try:
+        firebase_admin.get_app()
+    except ValueError as e:
+        raise ApiError(
+            "server_misconfigured",
+            503,
+            "Firebase credentials missing; set FIREBASE_CREDENTIALS_PATH or FIREBASE_SERVICE_ACCOUNT_JSON",
+        ) from e
+
     try:
         decoded = fb_auth.verify_id_token(token)
     except Exception as exc:  # noqa: BLE001 - Firebase auth boundary

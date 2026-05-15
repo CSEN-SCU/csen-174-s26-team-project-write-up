@@ -15,24 +15,31 @@ const internalSecret = assertCoachingInternalSecretConfigured();
 
 const app = express();
 app.use(express.json({ limit: "512kb" }));
-app.use(requireCoachingInternalSecret(internalSecret));
 
+// Public: Express runs middleware in order; these must register before requireCoachingInternalSecret.
 app.get("/", (_req, res) => {
   res.type("html").send(`<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"/><title>Write Up coaching-api</title></head>
 <body>
   <p><strong>coaching-api</strong> is running. There is no web UI on this port.</p>
-  <p>Every route requires header <code>X-Coaching-Internal-Secret</code> (see <code>COACHING_INTERNAL_SECRET</code> in <code>.env.example</code>).</p>
+  <p class="warn"><strong>Auth:</strong> <code>POST /coach</code>, <code>POST /dismiss</code>, and <code>GET /internal/diagnostics</code> require header <code>X-Coaching-Internal-Secret</code> (same value as <code>COACHING_INTERNAL_SECRET</code> in the repo <code>.env</code>). Use <strong>app-api</strong> <code>POST http://127.0.0.1:5050/coach</code> from the webapp or extension—it adds that header for you.</p>
+  <p><code>GET /</code> and <code>GET /health</code> are open for this page and liveness checks only.</p>
   <ul>
-    <li><code>GET /health</code> — liveness only (<code>{"ok":true}</code>)</li>
-    <li><code>GET /internal/diagnostics</code> — LLM/RAG/MCP flags for operators (same secret header)</li>
+    <li><code>GET /health</code> — liveness (<code>{"ok":true}</code>)</li>
+    <li><code>GET /internal/diagnostics</code> — LLM/RAG/MCP flags (requires secret header)</li>
     <li>POST /coach — JSON body: <code>{"text":"...","userId":"stable-id",...}</code> (optional <code>goals</code>, <code>audience</code>, <code>tonePreference</code>: formal|neutral|casual) or MCP mode <code>{"use_mcp":true,"doc_id":"…","userId":"…","text":""}</code> with <code>GOOGLE_DOCS_ACCESS_TOKEN</code> or <code>GOOGLE_DOCS_MCP_BRIDGE_URL</code> set on the server</li>
     <li>POST /dismiss — optional feedback dismiss events</li>
   </ul>
 </body>
 </html>`);
 });
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true });
+});
+
+app.use(requireCoachingInternalSecret(internalSecret));
 
 function diagnosticsPayload() {
   const attempts = resolveCoachLlmAttempts();
@@ -54,10 +61,6 @@ function diagnosticsPayload() {
     googleDocsAccessToken: Boolean((process.env.GOOGLE_DOCS_ACCESS_TOKEN || "").trim()),
   };
 }
-
-app.get("/health", (_req, res) => {
-  res.json({ ok: true });
-});
 
 app.get("/internal/diagnostics", (_req, res) => {
   res.json(diagnosticsPayload());
@@ -96,5 +99,7 @@ await loadKnowledge().catch((e) => {
 });
 
 app.listen(port, listenHost, () =>
-  console.log(`coaching-api on http://${listenHost}:${port} (internal secret required)`),
+  console.log(
+    `coaching-api on http://${listenHost}:${port} (GET / and /health public; other routes need X-Coaching-Internal-Secret)`,
+  ),
 );

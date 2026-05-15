@@ -340,6 +340,11 @@ label.sp-label {
   line-height: 1.5;
 }
 
+#output.output-placeholder {
+  opacity: 0.62;
+  font-style: italic;
+}
+
 #output.is-error {
   color: var(--coral);
   font-weight: 600;

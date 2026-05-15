@@ -186,22 +186,39 @@ export async function coachWithChatCompletions(
     });
   }
 
+  let timeoutMs = 90_000;
+  try {
+    const raw = String(process.env.COACH_LLM_HTTP_TIMEOUT_MS || "90000").trim();
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 3000) timeoutMs = Math.min(Math.floor(n), 300_000);
+  } catch {
+    /* keep default */
+  }
+  const ac = new AbortController();
+  const tid = setTimeout(() => ac.abort(), timeoutMs);
+
   const url = `${cfg.baseUrl.replace(/\/$/, "")}/chat/completions`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${cfg.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: cfg.model,
-      temperature,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-    }),
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${cfg.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: cfg.model,
+        temperature,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+      signal: ac.signal,
+    });
+  } finally {
+    clearTimeout(tid);
+  }
   if (!res.ok) {
     const errRaw = await res.text();
     const safe = redactSecrets(errRaw);

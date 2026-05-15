@@ -32,6 +32,12 @@ def client(probe_app):
         yield c
 
 
+@pytest.fixture(autouse=True)
+def _disable_dev_auth_bypass_for_probe(monkeypatch):
+    """Repo .env often sets APP_AUTH_BYPASS=1; these tests assert Bearer / missing_token behavior."""
+    monkeypatch.setenv("APP_AUTH_BYPASS", "0")
+
+
 def test_missing_authorization_returns_401(client):
     res = client.get("/probe")
     assert res.status_code == 401

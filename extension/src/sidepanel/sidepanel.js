@@ -2,6 +2,17 @@
 const DEFAULT_API_BASE = APP_API_BASE;
 globalThis.writeUpApiBaseForDebug = APP_API_BASE;
 
+const appFetch = typeof globalThis.writeUpFetchAppApi === "function" ? globalThis.writeUpFetchAppApi : fetch.bind(globalThis);
+
+/** Abort slow /coach (LLM chain). Side panel uses direct `fetch`, which honors `signal`. */
+const COACH_FETCH_TIMEOUT_MS = 125000;
+function coachFetchWithDeadline(url, options) {
+  const ac = new AbortController();
+  const tid = setTimeout(() => ac.abort(), COACH_FETCH_TIMEOUT_MS);
+  const merged = { ...(options || {}), signal: ac.signal };
+  return appFetch(url, merged).finally(() => clearTimeout(tid));
+}
+
 async function buildAppApiHeaders() {
   if (typeof globalThis.writeUpBuildApiHeaders === "function") {
     return globalThis.writeUpBuildApiHeaders();
@@ -23,6 +34,36 @@ function coachPersonalizationPayload() {
   if (d && typeof d === "object") return { ...d };
   return { goals: "", audience: "", tonePreference: "neutral" };
 }
+
+/** Plain-text feedback from /coach JSON (fallback if `feedback` string missing). */
+function coachFeedbackDisplayText(data) {
+  if (!data || typeof data !== "object") {
+    return "Unexpected empty response from /coach.";
+  }
+  const fb = typeof data.feedback === "string" ? data.feedback.trim() : "";
+  if (fb) return data.feedback;
+  const list = Array.isArray(data.suggestions)
+    ? data.suggestions
+    : Array.isArray(data.cards)
+      ? data.cards
+      : [];
+  if (!list.length) {
+    return "The coach returned no suggestions. If this persists, confirm npm run dev:coach and set OPENAI_API_KEY or GROQ_API_KEY for full LLM feedback.";
+  }
+  return list
+    .map((s, i) => {
+      const title = String(s?.title || "Note").trim();
+      const body = String(s?.body || "").trim();
+      const me =
+        s?.micro_edit != null && String(s.micro_edit).trim() !== ""
+          ? `\nTry: ${s.micro_edit}`
+          : "";
+      return `${i + 1}. ${title}\n${body}${me}`;
+    })
+    .join("\n\n");
+}
+
+let coachRequestInFlight = false;
 const WORD_BANK_DISPLAY_COUNT = 8;
 
 const homeLink = document.getElementById("home-link");
@@ -42,6 +83,7 @@ const docsLiveEnabled = document.getElementById("docs-live-enabled");
 const docsLiveUseMcp = document.getElementById("docs-live-use-mcp");
 const docsLiveStatus = document.getElementById("docs-live-status");
 const docsLiveOutput = document.getElementById("docs-live-output");
+const appApiLinkStatus = document.getElementById("app-api-link-status");
 
 function getApiBase() {
   return DEFAULT_API_BASE;
@@ -63,11 +105,22 @@ function selectedFocus() {
 function persistLiveSettings() {
   if (!chrome?.storage?.local) return;
   try {
-    chrome.storage.local.set({
-      docsLiveEnabled: !!docsLiveEnabled?.checked,
+    const enabled = !!docsLiveEnabled?.checked;
+    const payload = {
+      docsLiveEnabled: enabled,
       docsLiveUseMcp: !!docsLiveUseMcp?.checked,
       docsLiveFocus: selectedFocus(),
-    });
+    };
+    if (!enabled) {
+      payload.liveDocsStatus = "";
+      payload.liveDocsFeedback = "";
+      payload.liveDocsUpdatedAt = 0;
+      if (docsLiveStatus) docsLiveStatus.textContent = "";
+      if (docsLiveOutput) {
+        docsLiveOutput.textContent = "Enable live mode, then type in a Google Doc.";
+      }
+    }
+    chrome.storage.local.set(payload);
   } catch (_) {
     /* e.g. Extension context invalidated after reload */
   }
@@ -95,9 +148,16 @@ function hydrateLiveSettings() {
               el.checked = state.docsLiveFocus.includes(el.value);
             });
           }
-          renderLiveStatus(state.liveDocsStatus, state.liveDocsUpdatedAt);
-          if (docsLiveOutput && state.liveDocsFeedback) {
-            docsLiveOutput.textContent = state.liveDocsFeedback;
+          if (!state.docsLiveEnabled) {
+            renderLiveStatus("", 0);
+            if (docsLiveOutput) {
+              docsLiveOutput.textContent = "Enable live mode, then type in a Google Doc.";
+            }
+          } else {
+            renderLiveStatus(state.liveDocsStatus, state.liveDocsUpdatedAt);
+            if (docsLiveOutput && state.liveDocsFeedback) {
+              docsLiveOutput.textContent = state.liveDocsFeedback;
+            }
           }
         } catch (_) {
           /* Extension context invalidated */
@@ -177,7 +237,7 @@ async function loadWordBank() {
   const base = APP_API_BASE;
   try {
     const headers = await buildAppApiHeaders();
-    const res = await fetch(`${base}/feedback-history?docId=active`, {
+    const res = await appFetch(`${base}/feedback-history?docId=active`, {
       headers,
     });
     const data = await res.json().catch(() => ({}));
@@ -197,15 +257,21 @@ async function runFeedback() {
     return;
   }
 
+  if (coachRequestInFlight) {
+    statusLine.textContent = "Still waiting for the previous Get feedback request.";
+    return;
+  }
+  coachRequestInFlight = true;
+
   submitBtn.disabled = true;
-  statusLine.textContent = "Calling app-api (coaching)…";
+  statusLine.textContent = "Calling app-api → coaching-api…";
   output.textContent = "";
-  output.classList.remove("is-error");
+  output.classList.remove("output-placeholder", "is-error");
   outputMeta.textContent = "";
 
   try {
     const headers = await buildAppApiHeaders();
-    const res = await fetch(`${APP_API_BASE}/coach`, {
+    const res = await coachFetchWithDeadline(`${APP_API_BASE}/coach`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -218,45 +284,80 @@ async function runFeedback() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       output.classList.add("is-error");
-      output.textContent = data.error || `Request failed (${res.status}).`;
+      const hint = data.hint ? ` ${data.hint}` : "";
+      const baseMsg = data.message || data.error || "";
+      let detail =
+        data.error === "missing_token"
+          ? "Auth missing: add APP_ENV=dev and APP_AUTH_BYPASS=1 to app-api .env, restart npm run dev:app, or use Sign in (web) for a Firebase token."
+          : data.error === "missing_debug_user"
+            ? "Auth bypass is on but the request had no X-Debug-User. Reload the extension (a stale saved token can cause this) or use Clear token."
+            : data.error === "server_misconfigured"
+              ? baseMsg + hint ||
+                "Set COACHING_INTERNAL_SECRET in app-api .env (same random string as coaching-api)."
+              : data.error === "coaching_upstream" || data.error === "coaching_bad_response"
+                ? (baseMsg + hint + " Run npm run dev:coach; COACHING_API_BASE_URL should be http://127.0.0.1:8787 and the secret must match both .env files.").trim()
+                : data.error === "coaching_timeout"
+                  ? baseMsg + hint ||
+                    "Coaching-api or the LLM took too long. Try a shorter paragraph or raise COACHING_HTTP_TIMEOUT_S / COACH_LLM_HTTP_TIMEOUT_MS."
+                  : data.error === "unauthorized" && res.status === 401
+                    ? (baseMsg + hint).trim() ||
+                      "Coaching-api rejected the internal secret. Align COACHING_INTERNAL_SECRET in repo .env for app-api and coaching-api."
+                    : `${baseMsg}${hint}`.trim() || `Request failed (${res.status}).`;
+      output.textContent = detail;
       statusLine.textContent = "Error";
       return;
     }
-    output.textContent = data.feedback || "";
+    output.textContent = coachFeedbackDisplayText(data);
     const metaParts = [];
     if (data.model) metaParts.push(`Model: ${data.model}`);
     if (typeof data.vocabulary_pairs_saved === "number" && data.vocabulary_pairs_saved > 0) {
       metaParts.push(`Saved ${data.vocabulary_pairs_saved} vocab pair(s)`);
     }
     if (outputMeta) outputMeta.textContent = metaParts.join(" · ");
-    let persistMsg = "";
-    if (typeof writeUpPersistCoachSuggestions === "function") {
+    statusLine.textContent = "Done";
+
+    void (async () => {
+      let persistMsg = "";
       try {
-        const { saved, total } = await writeUpPersistCoachSuggestions(
-          APP_API_BASE,
-          null,
-          "active",
-          data,
-        );
-        if (total > 0) persistMsg = ` · Saved ${saved}/${total} to history`;
+        if (typeof writeUpPersistCoachSuggestions === "function") {
+          const { saved, total } = await writeUpPersistCoachSuggestions(
+            APP_API_BASE,
+            null,
+            "active",
+            data,
+          );
+          if (total > 0) persistMsg = ` · Saved ${saved}/${total} to history`;
+        }
       } catch (_) {
         persistMsg = " · History save skipped";
       }
-    }
-    statusLine.textContent = `Done${persistMsg}`;
-    await loadWordBank();
+      statusLine.textContent = `Done${persistMsg}`;
+      try {
+        await loadWordBank();
+      } catch (_) {
+        /* ignore */
+      }
+    })();
   } catch (e) {
     output.classList.add("is-error");
     if (isExtensionContextInvalidated(e)) {
       output.textContent =
         "Extension was reloaded. Close this side panel, click the Write Up toolbar icon again, then retry.";
     } else {
-      output.textContent =
-        (e && e.message) ||
-        "Could not reach app-api at http://127.0.0.1:5050 (coach proxy). Run `npm run dev:app` and `npm run dev:coach` from the repo root.";
+      const msg = e && e.message ? String(e.message) : "";
+      const aborted = (e && e.name === "AbortError") || /aborted|AbortError/i.test(msg);
+      output.textContent = aborted
+        ? `Timed out after ${COACH_FETCH_TIMEOUT_MS / 1000}s waiting for /coach. Run npm run dev:app and npm run dev:coach; try a shorter paragraph or set COACH_LLM_HTTP_TIMEOUT_MS.`
+        : msg === "Failed to fetch"
+          ? "Network error (Failed to fetch): reload the Write Up extension on chrome://extensions, run `npm run dev:app` and `npm run dev:coach`, and confirm http://127.0.0.1:5050 loads in a normal tab."
+          : msg.includes("Timed out after")
+            ? msg
+            : msg ||
+              "Could not reach app-api at http://127.0.0.1:5050 (coach proxy). Run `npm run dev:app` and `npm run dev:coach` from the repo root.";
     }
     statusLine.textContent = "Network error";
   } finally {
+    coachRequestInFlight = false;
     submitBtn.disabled = false;
   }
 }
@@ -273,9 +374,48 @@ function setActiveTab(tabName) {
   panelWordBank.hidden = feedbackActive;
 }
 
+async function warmupAppApi() {
+  if (!appApiLinkStatus) return;
+  appApiLinkStatus.textContent =
+    "Checking app-api and coaching-api at http://127.0.0.1:5050 / :8787…";
+  try {
+    const headers = await buildAppApiHeaders();
+    const res = await appFetch(`${APP_API_BASE}/health?coach=1`, { method: "GET", headers });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && (data.ok === true || data.service === "app-api")) {
+      const baseCoach = data.coaching_api_base_url || "http://127.0.0.1:8787";
+      if (data.coach_proxy_secret_configured === false) {
+        appApiLinkStatus.textContent =
+          "App-api: OK. Set COACHING_INTERNAL_SECRET in app-api .env (same value as coaching-api) so POST /coach can reach the coach.";
+        return;
+      }
+      if (data.coaching_api_reachable === false) {
+        appApiLinkStatus.textContent = `App-api: OK. Coaching-api not reachable at ${baseCoach} — run npm run dev:coach from the repo root, then reload this panel.`;
+        return;
+      }
+      if (data.coaching_api_reachable === true) {
+        appApiLinkStatus.textContent =
+          "App-api and coaching-api are reachable. Paste text below and click Get feedback (Flask logs POST /coach).";
+        return;
+      }
+      appApiLinkStatus.textContent =
+        "App-api: connected. Update app-api for /health?coach=1 checks, or run npm run dev:coach and try Get feedback.";
+      return;
+    }
+    appApiLinkStatus.textContent = `App-api: HTTP ${res.status}. Is npm run dev:app running?`;
+  } catch (e) {
+    const m = e && e.message ? String(e.message) : "error";
+    appApiLinkStatus.textContent =
+      m === "bad_target"
+        ? "App-api: extension rejected URL (reload Write Up on chrome://extensions after an update)."
+        : `${m} — Reload the extension, run npm run dev:app, then try again. For details: chrome://extensions → Write Up → service worker → Inspect.`;
+  }
+}
+
 async function init() {
   setActiveTab("feedback");
   syncHomeLinkHref(getApiBase());
+  await warmupAppApi();
   await loadWordBank();
   hydrateLiveSettings();
 }
@@ -301,10 +441,21 @@ if (chrome?.storage?.onChanged) {
   chrome.storage.onChanged.addListener((changes, areaName) => {
     try {
       if (areaName !== "local") return;
+      if (changes.docsLiveEnabled && changes.docsLiveEnabled.newValue === false) {
+        renderLiveStatus("", 0);
+        if (docsLiveOutput) {
+          docsLiveOutput.textContent = "Enable live mode, then type in a Google Doc.";
+        }
+      }
       if (changes.liveDocsFeedback && docsLiveOutput) {
+        if (!docsLiveEnabled?.checked) return;
         docsLiveOutput.textContent = changes.liveDocsFeedback.newValue || "";
       }
       if (changes.liveDocsStatus || changes.liveDocsUpdatedAt) {
+        if (!docsLiveEnabled?.checked) {
+          renderLiveStatus("", 0);
+          return;
+        }
         const statusText = changes.liveDocsStatus?.newValue;
         const updatedAt = changes.liveDocsUpdatedAt?.newValue;
         chrome.storage.local.get({ liveDocsStatus: "", liveDocsUpdatedAt: 0 }, (state) => {

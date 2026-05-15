@@ -63,10 +63,15 @@
       <section class="live-docs" aria-label="Google Docs live feedback">
         
         <p class="hint">
-          Experimental. MCP mode uses the local bridge at <code>/api/mcp/call</code> with
-          <code>GOOGLE_DOCS_ACCESS_TOKEN</code>, or an external bridge via
-          <code>GOOGLE_DOCS_MCP_BRIDGE_URL</code>.
+          <strong>Auth.</strong> <code>POST /coach</code> needs a Firebase ID token unless app-api is started with
+          <code>APP_ENV=dev</code> and <code>APP_AUTH_BYPASS=1</code> in your <code>.env</code> (then the extension sends <code>X-Debug-User</code>).
+          If you see <code>missing_token</code>, add that bypass for local dev or use <strong>Sign in (web)</strong> and keep a token.
         </p>
+        <p class="hint">
+          <strong>MCP (experimental).</strong> Docs text is loaded by <strong>coaching-api</strong> using <code>GOOGLE_DOCS_ACCESS_TOKEN</code> or <code>GOOGLE_DOCS_MCP_BRIDGE_URL</code>.
+          A sample HTTP bridge is <code>prototypes/ishika/server</code> (<code>POST /api/mcp/call</code> on that server), not on the main app-api at port 5050.
+        </p>
+        <p class="status" id="app-api-link-status" aria-live="polite"></p>
         <p class="status" id="docs-live-status" aria-live="polite"></p>
         <pre id="docs-live-output" class="live-docs-output">Enable live mode, then type in a Google Doc.</pre>
       </section>
@@ -89,7 +94,7 @@
 
       <div class="out-wrap">
         <div class="out-head">Feedback</div>
-        <pre id="output">This is the feedback example from the model. This is the feedback example from the model. This is the feedback example from the model. This is the feedback example from the model. This is the feedback example from the model. This is the feedback example from the model.</pre>
+        <pre id="output" class="output-placeholder">Coach feedback will show here after you click Get feedback (local app-api + coaching-api).</pre>
       </div>
     </section>
 

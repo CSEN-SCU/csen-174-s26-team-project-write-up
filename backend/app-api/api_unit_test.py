@@ -96,6 +96,9 @@ def test_verify_google_token():
         "name": "Test User",
     }
     with patch("services.ensure_firebase_app"), patch(
+        "firebase_admin.get_app",
+        return_value=MagicMock(),
+    ), patch(
         "firebase_admin.auth.verify_id_token",
         return_value=decoded,
     ):

@@ -67,7 +67,8 @@
         confidence: 0.85,
       };
 
-      const res = await fetch(`${base}/feedback-history`, {
+      const doFetch = typeof root.writeUpFetchAppApi === "function" ? root.writeUpFetchAppApi : fetch.bind(root);
+      const res = await doFetch(`${base}/feedback-history`, {
         method: "POST",
         headers: { ...hdrs, "Content-Type": "application/json" },
         body: JSON.stringify(payload),

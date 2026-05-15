@@ -41,10 +41,28 @@ describe("resolveCoachDraftText", () => {
     if (r.ok) expect(r.text).toBe("  hi  ");
   });
 
-  it("returns 400 when use_mcp without doc_id", async () => {
+  it("returns 400 when use_mcp and MCP env set but no doc_id", async () => {
+    process.env.GOOGLE_DOCS_ACCESS_TOKEN = "test-token";
     const r = await resolveCoachDraftText({ text: "", use_mcp: true });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.status).toBe(400);
+    delete process.env.GOOGLE_DOCS_ACCESS_TOKEN;
+  });
+
+  it("ignores use_mcp when MCP env not configured (passes body.text through)", async () => {
+    const r = await resolveCoachDraftText({ text: "", use_mcp: true, doc_id: "abc" });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.text).toBe("");
+  });
+
+  it("passes body text when use_mcp true but server has no MCP (DOM mode)", async () => {
+    const r = await resolveCoachDraftText({
+      text: "  hello from dom  ",
+      use_mcp: true,
+      doc_id: "abc",
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.text).toBe("  hello from dom  ");
   });
 
   it("fetches via Google Docs API when token set", async () => {

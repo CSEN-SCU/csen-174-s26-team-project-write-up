@@ -15,10 +15,9 @@ _DEV_BYPASS_ENVS = frozenset({"dev", "test"})
 
 
 def _bypass_allowed() -> bool:
-    return (
-        os.environ.get("APP_AUTH_BYPASS") == "1"
-        and os.environ.get("APP_ENV", "dev").lower() in _DEV_BYPASS_ENVS
-    )
+    auth_bp = os.environ.get("APP_AUTH_BYPASS", "").strip()
+    env = os.environ.get("APP_ENV", "dev").strip().lower()
+    return auth_bp == "1" and env in _DEV_BYPASS_ENVS
 
 
 def require_auth(view):
@@ -40,6 +39,12 @@ def require_auth(view):
                 g.user_email = request.headers.get("X-Debug-Email")
                 g.user_name = request.headers.get("X-Debug-Name")
                 return view(*args, **kwargs)
+            raise ApiError(
+                "missing_debug_user",
+                401,
+                "APP_AUTH_BYPASS is on: send header X-Debug-User (synthetic uid). "
+                "If you use the extension against localhost, reload the extension after clearing a stale firebaseIdToken.",
+            )
 
         header = request.headers.get("Authorization", "")
         if not header.lower().startswith("bearer "):

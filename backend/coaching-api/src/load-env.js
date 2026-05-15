@@ -1,6 +1,8 @@
 /**
- * Load env from repo-root `.env` then `backend/coaching-api/.env` (local overrides).
- * `import "dotenv/config"` only reads `process.cwd()/.env`, which misses a monorepo root `.env`.
+ * Mirror app-api env layering so shared secrets match:
+ * 1) repo `.env`  2) `backend/app-api/.env` (override)  3) `backend/coaching-api/.env` (override)
+ *
+ * Without (2), `COACHING_INTERNAL_SECRET` set only in app-api/.env breaks the coaching-api proxy check.
  */
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -10,26 +12,22 @@ import dotenv from "dotenv";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const coachingApiRoot = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
+const appApiRoot = path.join(repoRoot, "backend", "app-api");
 
-const rootEnv = path.join(repoRoot, ".env");
-const localEnv = path.join(coachingApiRoot, ".env");
-/** When `node` is started with cwd `backend/coaching-api`, repo root is two levels up. */
-const cwdRepoEnv = path.resolve(process.cwd(), "..", "..", ".env");
-const cwdEnv = path.resolve(process.cwd(), ".env");
+const chain = [
+  { path: path.join(repoRoot, ".env"), override: false },
+  { path: path.join(appApiRoot, ".env"), override: true },
+  { path: path.join(coachingApiRoot, ".env"), override: true },
+];
 
-const loaded = new Set();
-function loadEnvFile(filePath) {
-  const norm = path.normalize(filePath);
-  if (loaded.has(norm) || !existsSync(norm)) return;
-  loaded.add(norm);
-  dotenv.config({ path: norm });
+const seen = new Set();
+for (const { path: envPath, override } of chain) {
+  const norm = path.normalize(envPath);
+  if (seen.has(norm) || !existsSync(norm)) continue;
+  seen.add(norm);
+  dotenv.config({ path: norm, override });
 }
 
-loadEnvFile(rootEnv);
-loadEnvFile(cwdRepoEnv);
-loadEnvFile(localEnv);
-loadEnvFile(cwdEnv);
-
-if (loaded.size === 0) {
+if (seen.size === 0) {
   dotenv.config();
 }
