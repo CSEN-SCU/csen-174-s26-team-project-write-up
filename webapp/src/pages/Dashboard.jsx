@@ -38,7 +38,10 @@ export default function Dashboard() {
             an instant rewrite. It focuses on longitudinal insight, pedagogical explanations, and practice that respects your context and style.
           </p>
           <div className="dashboard__hero-actions">
-            <Link className="dashboard__btn dashboard__btn--primary" to="/onboarding">
+            <Link className="dashboard__btn dashboard__btn--primary" to="/write">
+              Open web editor
+            </Link>
+            <Link className="dashboard__btn dashboard__btn--ghost" to="/onboarding">
               Start onboarding
             </Link>
             <Link className="dashboard__btn dashboard__btn--ghost" to="/history">

@@ -6,6 +6,7 @@ import History from "./pages/History";
 import Profile from "./pages/Profile";
 import ExtensionAuth from "./pages/ExtensionAuth";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Write from "./pages/Write";
 
 function TopbarAuth() {
   const { user, loading, signInWithGoogle, signOut } = useAuth();
@@ -40,6 +41,7 @@ export default function App() {
           <h1>Write Up</h1>
           <nav>
             <Link to="/">Dashboard</Link>
+            <Link to="/write">Write</Link>
             <Link to="/onboarding">Onboarding</Link>
             <Link to="/history">History</Link>
             <Link to="/profile">Profile</Link>
@@ -51,6 +53,7 @@ export default function App() {
         <main>
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/write" element={<Write />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/history" element={<History />} />
             <Route path="/profile" element={<Profile />} />

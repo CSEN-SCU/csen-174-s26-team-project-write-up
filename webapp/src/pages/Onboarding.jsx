@@ -1,7 +1,9 @@
 ﻿import { useState } from "react";
 import { ApiError, api } from "../lib/api";
+import { useAuth } from "../auth/AuthContext";
 
 export default function Onboarding() {
+  const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const [draft, setDraft] = useState("");
   const [ack, setAck] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -12,7 +14,7 @@ export default function Onboarding() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || !user) return;
     setApiErr(null);
     setSubmitting(true);
     const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
@@ -50,8 +52,17 @@ export default function Onboarding() {
         </header>
 
         <div className="dashboard__ribbon" aria-hidden="true">
-          <span>Requires app-api · Sign in from the top bar or set VITE_DEBUG_APP_USER for local bypass</span>
+          <span>Requires app-api · Sign in with Google before submitting</span>
         </div>
+
+        {!authLoading && !user ? (
+          <p className="onboarding-page__hint">
+            <button type="button" className="dashboard__btn dashboard__btn--primary" onClick={() => signInWithGoogle()}>
+              Sign in with Google
+            </button>{" "}
+            to save your sample to your account.
+          </p>
+        ) : null}
 
         <form className="onboarding-page__form" onSubmit={handleSubmit} aria-labelledby="onboarding-title">
           <label className="onboarding-page__label" htmlFor="onboarding-sample">
@@ -78,7 +89,7 @@ export default function Onboarding() {
             <button
               type="submit"
               className="onboarding-page__submit dashboard__btn dashboard__btn--primary"
-              disabled={!canSubmit || submitting}
+              disabled={!canSubmit || submitting || !user || authLoading}
             >
               {submitting ? "Saving…" : "Submit sample"}
             </button>

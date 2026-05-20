@@ -111,14 +111,44 @@ export const api = {
     }),
 
   /**
-   * Proxied by app-api to coaching-api. Extra headers (e.g. overrides) optional.
+   * Proxied by app-api → coaching-api (Chris / swe-test-style live coach).
+   * userId is set server-side from the Firebase token; do not send a client uid.
    */
-  coach: (text, userId, { headers: extraHeaders = {} } = {}) =>
+  coach: (text, { coachMode = "paused", surface = "web", headers: extraHeaders = {} } = {}) =>
     apiFetch("/coach", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...extraHeaders },
-      body: JSON.stringify({ text, userId, surface: "web" }),
+      body: JSON.stringify({
+        text,
+        surface,
+        coachMode: coachMode === "typing" ? "typing" : "paused",
+      }),
     }),
+
+  documents: {
+    list: ({ headers: extraHeaders = {} } = {}) =>
+      apiFetch("/api/documents", {
+        headers: extraHeaders,
+        fallback: { documents: [], degraded: true, error: "offline" },
+      }),
+
+    get: (id, { headers: extraHeaders = {} } = {}) =>
+      apiFetch(`/api/documents/${encodeURIComponent(id)}`, { headers: extraHeaders }),
+
+    create: (title = "Untitled", { headers: extraHeaders = {} } = {}) =>
+      apiFetch("/api/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...extraHeaders },
+        body: JSON.stringify({ title }),
+      }),
+
+    update: (id, { title, content }, { headers: extraHeaders = {} } = {}) =>
+      apiFetch(`/api/documents/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...extraHeaders },
+        body: JSON.stringify({ title, content }),
+      }),
+  },
 
   saveFeedback: (record, { headers: extraHeaders = {} } = {}) =>
     apiFetch("/api/feedback-history", {

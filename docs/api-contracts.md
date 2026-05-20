@@ -88,6 +88,16 @@ Node service for RAG/LLM coaching. Intended to sit **behind** app-api in product
 - `GET /preferences`
 - `PUT /preferences`
 
+### Documents (web editor; authenticated)
+Firestore when Firebase is configured; JSON file store when **`APP_LOCAL_DEV_STORE=1`** (typical local dev with `apply_dev_defaults()`).
+
+- `GET /documents` — list current user's drafts (`id`, `title`, `updatedAt`).
+- `POST /documents` — create draft; optional JSON `{ "title": "..." }`.
+- `GET /documents/<docId>` — full draft (`id`, `title`, `content`, timestamps).
+- `PUT /documents/<docId>` — update `title` and/or `content`.
+
+Webapp dev calls these as **`/api/documents`** (Vite strips the `/api` prefix before forwarding to app-api).
+
 ### Coach proxy (authenticated → coaching-api)
 These routes require a **Firebase ID token** (`Authorization: Bearer <id_token>`), unless app-api is running in the documented dev-only bypass (`APP_AUTH_BYPASS` + `APP_ENV` — see root `.env.example`).
 
@@ -102,5 +112,14 @@ These routes require a **Firebase ID token** (`Authorization: Bearer <id_token>`
 - Response: app-api returns coaching-api’s JSON body and HTTP status when the upstream response is JSON; network/timeout/non-JSON failures map to app-api errors (`coaching_upstream`, `coaching_timeout`, `coaching_bad_response`).
 
 ## Clients (webapp, extension)
+
+### swe-test reference vs this repo
+The **`swe-test`** prototype webapp calls **coaching-api directly** (`VITE_COACHING_API_URL` + `POST /api/coaching-feedback`, no Firebase). This repo keeps the browser on **app-api** only: Firebase Bearer (or dev `X-Debug-User`), then app-api proxies to coaching-api with **`X-Coaching-Internal-Secret`**. The web **Write** editor matches the Chris prototype flow (`/api/documents` + debounced `POST /coach` with `coachMode`).
+
+| Environment | Webapp API base | Auth | Coaching path |
+|-------------|-----------------|------|----------------|
+| **Local dev** | Same origin (Vite proxy → `127.0.0.1:5050`) | `VITE_FIREBASE_*` sign-in, or `VITE_DEBUG_APP_USER` when `APP_AUTH_BYPASS=1` | `POST /coach` → app-api → `127.0.0.1:8787` |
+| **Production** | `VITE_APP_API_BASE_URL` (deployed app-api) | Firebase only (`APP_AUTH_BYPASS` off) | Same proxy; set `WEBAPP_BASE_URL` / CORS on app-api |
+
 - Call **app-api** `POST /coach` and `POST /dismiss` only, not coaching-api directly, so `userId` cannot be spoofed and a single auth layer applies.
 - **`GET /auth/client-config`** (no auth): Firebase web SDK fields for aligning the extension with the same Firebase project (requires **`FIREBASE_WEB_*`** on app-api; mirror `VITE_FIREBASE_*` from the webapp).

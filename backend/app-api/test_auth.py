@@ -102,3 +102,20 @@ def test_auth_bypass_with_x_debug_user(client, monkeypatch):
     assert body["uid"] == "alice"
     assert body["email"] == "alice@example.com"
     assert body["name"] == "Alice"
+
+
+def test_auth_bypass_still_accepts_bearer_token(client, monkeypatch):
+    """Dev bypass must not block signed-in webapp users (Firebase Bearer)."""
+    monkeypatch.setenv("APP_AUTH_BYPASS", "1")
+    monkeypatch.setenv("APP_ENV", "test")
+    with patch(
+        "auth.verify_google_token",
+        return_value={
+            "uid": "firebase-uid",
+            "email": "u@example.com",
+            "name": "Web User",
+        },
+    ):
+        res = client.get("/probe", headers={"Authorization": "Bearer valid.jwt"})
+    assert res.status_code == 200
+    assert res.get_json()["uid"] == "firebase-uid"

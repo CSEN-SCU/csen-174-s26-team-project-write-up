@@ -29,6 +29,29 @@ def require_auth(view):
 
     @wraps(view)
     def wrapped(*args, **kwargs):
+        header = request.headers.get("Authorization", "")
+        has_bearer = header.lower().startswith("bearer ")
+        token = header.split(" ", 1)[1].strip() if has_bearer else ""
+
+        # Signed-in webapp/extension: verify Firebase even when APP_AUTH_BYPASS=1.
+        if token:
+            try:
+                user = verify_google_token(token)
+            except ApiError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - boundary
+                log.warning("verify_id_token failed: %s", exc)
+                raise ApiError(
+                    "unauthenticated",
+                    401,
+                    "Invalid or expired ID token",
+                ) from exc
+
+            g.user_id = user["uid"]
+            g.user_email = user.get("email")
+            g.user_name = user.get("name")
+            return view(*args, **kwargs)
+
         if _bypass_allowed():
             debug_uid = request.headers.get("X-Debug-User")
             if debug_uid:
@@ -42,37 +65,17 @@ def require_auth(view):
             raise ApiError(
                 "missing_debug_user",
                 401,
-                "APP_AUTH_BYPASS is on: send header X-Debug-User (synthetic uid). "
+                "APP_AUTH_BYPASS is on: sign in (Bearer token) or send header X-Debug-User. "
                 "If you use the extension against localhost, reload the extension after clearing a stale firebaseIdToken.",
             )
 
-        header = request.headers.get("Authorization", "")
-        if not header.lower().startswith("bearer "):
-            raise ApiError(
-                "missing_token",
-                401,
-                "Authorization: Bearer <id_token> required",
-            )
-
-        token = header.split(" ", 1)[1].strip()
-        if not token:
+        if has_bearer:
             raise ApiError("missing_token", 401, "Empty Bearer token")
 
-        try:
-            user = verify_google_token(token)
-        except ApiError:
-            raise
-        except Exception as exc:  # noqa: BLE001 - boundary
-            log.warning("verify_id_token failed: %s", exc)
-            raise ApiError(
-                "unauthenticated",
-                401,
-                "Invalid or expired ID token",
-            ) from exc
-
-        g.user_id = user["uid"]
-        g.user_email = user.get("email")
-        g.user_name = user.get("name")
-        return view(*args, **kwargs)
+        raise ApiError(
+            "missing_token",
+            401,
+            "Authorization: Bearer <id_token> required",
+        )
 
     return wrapped

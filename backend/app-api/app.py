@@ -16,6 +16,10 @@ _REPO_ROOT = _APP_DIR.parents[1]
 load_dotenv(_REPO_ROOT / ".env")
 load_dotenv(_APP_DIR / ".env", override=True)
 
+from dev_defaults import apply_dev_defaults
+
+apply_dev_defaults()
+
 from errors import ApiError
 from extensions import limiter
 from flask_limiter.errors import RateLimitExceeded
@@ -26,6 +30,7 @@ from routes.dismissals import bp as dismissals_bp
 from routes.preferences import bp as prefs_bp
 from routes.auth_google import bp as oauth_bp
 from routes.coach_proxy import bp as coach_proxy_bp
+from routes.documents import bp as documents_bp
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -119,6 +124,7 @@ app.register_blueprint(dismissals_bp)
 app.register_blueprint(prefs_bp)
 app.register_blueprint(oauth_bp)
 app.register_blueprint(coach_proxy_bp)
+app.register_blueprint(documents_bp)
 _warn_if_extension_local_auth()
 
 

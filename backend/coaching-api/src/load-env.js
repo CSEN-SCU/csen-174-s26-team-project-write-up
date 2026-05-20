@@ -31,3 +31,10 @@ for (const { path: envPath, override } of chain) {
 if (seen.size === 0) {
   dotenv.config();
 }
+
+/** Match app-api `dev_defaults.py` so `npm run dev:all` works without hand-copying secrets. */
+const appEnv = (process.env.APP_ENV || "dev").trim().toLowerCase();
+if (appEnv === "dev" || appEnv === "test") {
+  process.env.COACHING_INTERNAL_SECRET ??=
+    "dev-local-coaching-secret-change-me";
+}
