@@ -1,12 +1,13 @@
 import nspell from "nspell";
 import dictionaryEn from "dictionary-en";
 import { tokenize, HEDGE_WORDS, countMatches } from "../lib/nlp.js";
+import { isLikelyGibberishToken } from "../lib/word-quality.js";
 
 /** @type {import("nspell") | null} */
 let spellchecker = null;
 
 const SPELL_ALLOW = new Set(
-  `omg lol lmao rofl imo tbh idk btw fr frfr ngl irl ig u ur bc cos cuz tho thru pls plz ppl ok okay yep nah huh hmm hm er um uh kinda sorta gonna wanna gotta hell damn darn shoot dang heck yeet sus cap fax nope haha hahaha woah whoa yall ya'll gonna cv api css html js ts jpg png gif pdf url uri sql dns tcp http https www com org net io co uk app apps ios android`
+  `omg lol lmao rofl imo tbh idk btw fr frfr ngl irl ig u ur bc cos cuz tho thru pls plz ppl ok okay yep nah huh hmm hm er um uh kinda sorta gonna wanna gotta hell damn darn shoot dang heck yeet sus cap fax nope haha hahaha woah whoa yall ya'll gonna cv api css html js ts jpg png gif pdf url uri sql dns tcp http https www com org net io co uk app apps ios android bro holy shit fuck fucking freaking crap ass dude man guys gon na`
     .split(/\s+/),
 );
 
@@ -16,8 +17,31 @@ try {
   console.warn("Heuristics spellchecker unavailable:", e?.message || e);
 }
 
-export function spellDictionarySuggestions(text) {
+/** Skip dictionary pass when many long tokens are not real English words. */
+export function draftHasHeavyUnknownTokens(text) {
+  if (!spellchecker) return false;
+  const tokens = String(text || "").match(/\b[a-zA-Z]{4,}\b/g) || [];
+  if (tokens.length < 4) return false;
+  let unknown = 0;
+  for (const raw of tokens) {
+    const lw = raw.toLowerCase();
+    if (SPELL_ALLOW.has(lw)) continue;
+    if (lw.length === 4) {
+      unknown += 1;
+      continue;
+    }
+    if (isLikelyGibberishToken(raw) || !spellchecker.correct(lw)) unknown += 1;
+  }
+  return unknown / tokens.length >= 0.4;
+}
+
+/**
+ * @param {string} text
+ * @param {{ maxCards?: number }} [opts]
+ */
+export function spellDictionarySuggestions(text, opts = {}) {
   if (!spellchecker) return [];
+  const maxCards = Math.max(1, Math.min(14, Number(opts.maxCards) || 8));
   const spell = spellchecker;
   const t = String(text);
   const seen = new Set();
@@ -25,7 +49,10 @@ export function spellDictionarySuggestions(text) {
   for (const m of t.matchAll(/\b([a-zA-Z]{4,})\b/g)) {
     const raw = m[1];
     const lw = raw.toLowerCase();
+    // 4-letter tokens are often keyboard noise (e.g. "aodj" → bogus "adj" fixes).
+    if (lw.length === 4) continue;
     if (SPELL_ALLOW.has(lw)) continue;
+    if (isLikelyGibberishToken(raw)) continue;
     if (seen.has(lw)) continue;
     if (/^[A-Z]{2,}$/.test(raw)) continue;
     if (spell.correct(lw)) continue;
@@ -38,7 +65,7 @@ export function spellDictionarySuggestions(text) {
       body: `Likely typo—dictionary suggests **${sug[0]}**${sug[1] ? ` or *${sug[1]}*` : ""}. Pick the word that matches your meaning; keep your tone.`,
       micro_edit: sug[0],
     });
-    if (cards.length >= 6) break;
+    if (cards.length >= maxCards) break;
   }
   return cards;
 }
@@ -148,6 +175,28 @@ export function obviousSpellingGrammarHeuristics(text) {
 export function heuristicSuggestions(text, mode = "paused") {
   const suggestions = [];
   const pausedOnly = mode === "paused";
+
+  if (pausedOnly) {
+    const asksWithoutMark = text.match(/\b(?:friend|they|she|he)\s+asks?\b(?![^.!?\n]*\?)/gi);
+    if (asksWithoutMark?.length) {
+      suggestions.push({
+        type: "punctuation",
+        title: "Question phrasing without “?”",
+        body:
+          `Phrases like “${asksWithoutMark[0]}” read as questions to many readers. A question mark (or rephrasing as a statement) makes the turn in the conversation easier to follow.`,
+        micro_edit: null,
+      });
+    }
+    if (/\b(shit|fuck|damn)\b/i.test(text) && /\b(vision|product|report|essay|thesis|professor|client)\b/i.test(text)) {
+      suggestions.push({
+        type: "voice",
+        title: "Tone shift: casual heat + formal topic",
+        body:
+          "Swearing can be honest voice—but next to product/vision language, some readers need one bridge sentence so the register feels intentional, not accidental.",
+        micro_edit: null,
+      });
+    }
+  }
 
   if (pausedOnly) {
     const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);

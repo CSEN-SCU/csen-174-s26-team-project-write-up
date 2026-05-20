@@ -52,6 +52,14 @@ export function useLiveCoach({ enabled, currentId, title, content, onSave }) {
     ) {
       return;
     }
+    // Full (paused) pass already ran for this draft—do not replace with lighter typing-only tips.
+    if (
+      m === "typing" &&
+      trimmed === lastPausedCoachTextRef.current &&
+      coachFailedForTextRef.current === null
+    ) {
+      return;
+    }
 
     coachInFlightRef.current = true;
     const gen = ++coachGenRef.current;
@@ -69,8 +77,14 @@ export function useLiveCoach({ enabled, currentId, title, content, onSave }) {
       }
       const raw = Array.isArray(data.suggestions) ? data.suggestions : [];
       const nextChunks = Array.isArray(data.retrievedChunks) ? data.retrievedChunks : [];
-      setSuggestions((prev) => (raw.length > 0 ? raw : prev));
-      setRetrievedChunks((prev) => (nextChunks.length > 0 ? nextChunks : prev));
+      setSuggestions((prev) => {
+        if (m === "paused") return raw.length > 0 ? raw : prev;
+        if (trimmed === lastPausedCoachTextRef.current && prev.length > raw.length) return prev;
+        return raw.length > 0 ? raw : prev;
+      });
+      setRetrievedChunks((prev) =>
+        m === "paused" || nextChunks.length > 0 ? nextChunks : prev,
+      );
       setProfileSnapshot(data.profileSnapshot ?? null);
       setLastCoachAt(new Date().toISOString());
       setCoachPhase("ready");

@@ -8,6 +8,8 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  /** True once Firebase has a usable ID token for API calls (avoids missing_debug_user on reload). */
+  const [sessionReady, setSessionReady] = useState(false);
   const [serverProfile, setServerProfile] = useState(null);
   const [meLoading, setMeLoading] = useState(false);
   const [meError, setMeError] = useState(null);
@@ -16,20 +18,27 @@ export function AuthProvider({ children }) {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
+      if (u) {
+        setWebappIdTokenGetter(() => u.getIdToken());
+        setSessionReady(false);
+        void u
+          .getIdToken()
+          .then(() => setSessionReady(true))
+          .catch(() => setSessionReady(false));
+      } else {
+        clearWebappIdTokenGetter();
+        setSessionReady(false);
+        setServerProfile(null);
+        setMeLoading(false);
+        setMeError(null);
+      }
     });
     return () => unsub();
   }, []);
 
   useEffect(() => {
-    if (!user) {
-      clearWebappIdTokenGetter();
-      setServerProfile(null);
-      setMeLoading(false);
-      setMeError(null);
-      return;
-    }
+    if (!user || !sessionReady) return undefined;
 
-    setWebappIdTokenGetter(() => user.getIdToken());
     let cancelled = false;
     setMeLoading(true);
     setMeError(null);
@@ -55,14 +64,14 @@ export function AuthProvider({ children }) {
 
     return () => {
       cancelled = true;
-      clearWebappIdTokenGetter();
     };
-  }, [user]);
+  }, [user, sessionReady]);
 
   const value = useMemo(
     () => ({
       user,
       loading,
+      sessionReady,
       serverProfile,
       meLoading,
       meError,
@@ -72,7 +81,7 @@ export function AuthProvider({ children }) {
       },
       signOut: () => signOut(auth),
     }),
-    [user, loading, serverProfile, meLoading, meError],
+    [user, loading, sessionReady, serverProfile, meLoading, meError],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

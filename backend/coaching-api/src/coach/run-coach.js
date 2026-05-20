@@ -19,6 +19,36 @@ import { coachWithChatCompletions, resolveCoachLlmAttempts } from "../llm/index.
 import { resolveCoachDraftText } from "../integrations/google-docs-mcp.js";
 
 const RAG_TOP_K = Math.max(1, Math.min(24, Number(process.env.RAG_TOP_K || 8)));
+const PAUSED_SUGGESTION_MAX = Math.max(8, Math.min(16, Number(process.env.COACH_PAUSED_MAX_SUGGESTIONS || 14)));
+
+/** Drop prior draft snapshots that are almost the same as the current pass (reduces Sources noise). */
+function draftsForRetrieval(drafts, currentText) {
+  const rows = Array.isArray(drafts) ? drafts : [];
+  const norm = String(currentText || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  if (!norm) return rows;
+  return rows.filter((d) => {
+    const t = String(d?.text || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+    if (!t || t === norm) return false;
+    const shorter = t.length < norm.length ? t : norm;
+    const longer = t.length < norm.length ? norm : t;
+    if (longer.includes(shorter) && shorter.length / longer.length > 0.88) return false;
+    return true;
+  });
+}
+
+/** Prefer coaching guides in the Sources panel over recycled draft history. */
+function orderRetrievedChunksForDisplay(chunks) {
+  const list = Array.isArray(chunks) ? [...chunks] : [];
+  const guides = list.filter((c) => !String(c.id || "").startsWith("user-draft:"));
+  const drafts = list.filter((c) => String(c.id || "").startsWith("user-draft:"));
+  return [...guides, ...drafts.slice(0, 2)].slice(0, RAG_TOP_K);
+}
 
 /**
  * @param {object} body
@@ -76,7 +106,11 @@ export async function runCoach(body, meta = {}) {
 
   const store = await readProfileStore();
   const globalRetrieved = retrieveForWritingCoach(trimmed, RAG_TOP_K);
-  const userRetrieved = retrieveFromUserDrafts(store[userId]?.drafts || [], trimmed, Math.min(4, RAG_TOP_K));
+  const userRetrieved = retrieveFromUserDrafts(
+    draftsForRetrieval(store[userId]?.drafts || [], trimmed),
+    trimmed,
+    2,
+  );
   const retrieved = [...globalRetrieved, ...userRetrieved]
     .reduce((acc, item) => {
       const prev = acc.get(item.chunk.id);
@@ -122,27 +156,41 @@ export async function runCoach(body, meta = {}) {
   }
 
   const typoCards = obviousSpellingGrammarHeuristics(trimmed);
-  const dictCards = spellDictionarySuggestions(trimmed);
-  const suggestions = applyRagFeedbackGuardrails(
-    dedupeSuggestionTitles([
-      ...typoCards,
-      ...dictCards,
-      ...(llmCards.length ? llmCards : []),
-      ...heur,
-    ]),
-    { userText: trimmed, max: 10 },
-  );
+  const dictCards = spellDictionarySuggestions(trimmed, {
+    maxCards: coachMode === "paused" ? 10 : 4,
+  });
+  const merged =
+    coachMode === "paused"
+      ? [
+          ...typoCards,
+          ...dictCards,
+          ...heur,
+          ...(llmCards.length ? llmCards : []),
+        ]
+      : [
+          ...typoCards,
+          ...dictCards,
+          ...(llmCards.length ? llmCards : []),
+          ...heur,
+        ];
+  const suggestionMax = coachMode === "paused" ? PAUSED_SUGGESTION_MAX : 10;
+  const suggestions = applyRagFeedbackGuardrails(dedupeSuggestionTitles(merged), {
+    userText: trimmed,
+    max: suggestionMax,
+  });
 
   const summary = `surface=${surface}; coachMode=${coachMode}; top retrieval: ${retrievedSorted[0]?.chunk?.id || "none"}; words=${signals.wordCount}; longSentenceCount=${signals.longSentenceCount}; commaSpliceSignals=${signals.commaSpliceSignals}`;
   const profileSnapshot = await appendProfile(userId, summary, signals).catch(() => predictedProfile);
   await appendUserDraft(userId, trimmed).catch(() => {});
 
-  const retrievedChunks = retrievedSorted.map((r) => ({
-    id: r.chunk.id,
-    score: r.score,
-    text: r.chunk.text,
-    source: r.chunk.source,
-  }));
+  const retrievedChunks = orderRetrievedChunksForDisplay(
+    retrievedSorted.map((r) => ({
+      id: r.chunk.id,
+      score: r.score,
+      text: r.chunk.text,
+      source: r.chunk.source,
+    })),
+  );
 
   const feedback = suggestionsToFeedback(suggestions);
 

@@ -19,6 +19,18 @@ Do NOT give suggestions about: sentence-ending punctuation, missing periods only
 If USER TEXT contains at least one clear misspelling or agreement error of the kinds above, you MUST return at least one suggestion naming it. Return an empty array only when there are genuinely zero such issues in the visible text.
 In this MODE, ignore any instruction elsewhere in this prompt to always produce 3–5 suggestions or to avoid “nitpicky” spelling callouts—here, spelling and agreement ARE the priority.`;
 
+const FULL_REVIEW_MODE_APPEND = `
+
+--- MODE: FULL REVIEW (paused) ---
+The writer wants **comprehensive** feedback on the **entire** USER TEXT (all paragraphs), aligned with Write Up’s product vision: surface issues *and* pedagogy, without flattening voice.
+
+You MUST cover three layers in one pass (separate cards, not one vague summary):
+1. **Mechanics** — List **every** clear spelling mistake, wrong word form, and agreement error in passages a human can read. Quote the exact wrong word or phrase in the title. Skip random keyboard-mash tokens at the top unless the writer clearly meant them as words. Do not invent issues.
+2. **Tone / voice** — Note how the draft sounds (casual, heated, uncertain, mixed register) and what a reader might feel. Preserve intentional informality; suggest small bridges only when tone fights the stated purpose.
+3. **Improvement** — Give concrete, optional next-step edits (micro_edit when helpful) for clarity, flow, or stronger phrasing on the **readable** sentences—including new material at the end of the draft, not only the opening.
+
+Return **6–12** suggestions when the draft has enough readable content; use fewer only if issues are truly sparse. Include at least one \`voice\` or \`clarity\` card and at least two \`grammar\`/\`punctuation\` cards when those issues exist.`;
+
 /**
  * @param {string} text
  * @param {{ chunk: { id: string, text: string }, score: number }[]} retrieved
@@ -71,9 +83,9 @@ Voice and stance (non-negotiable):
 How to give feedback:
 - Prefer **one precise observation + why it matters to a reader** over a list of rules. Separate “pattern / structure” from “local typo / agreement” when both exist.
 - When you suggest a wording change, frame it as *optional* and keep it minimal—one clause or sentence, not a full rewrite.
-- Call out spelling or agreement errors when they would confuse a reader or break trust; skip pedantic fixes that do not change comprehension.
+- On **full review (paused)**, enumerate clear spelling/grammar issues in readable prose and add tone + improvement cards; see MODE appendix.
+- On **drafting (typing)**, prioritize visible spelling/agreement only.
 - Do NOT rewrite the whole passage. Do NOT produce polished “essay voice” unless asked.
-- Give 3–5 concrete suggestions when MODE is full (paused); follow MODE instructions when drafting (typing).
 - Include a grammar or punctuation suggestion only when USER TEXT clearly shows that issue (do not invent one to fill a quota). Informal fragments like “Woah”, interjections, and casual tone are allowed when meaning is clear.
 - Do NOT claim “missing sentence-ending punctuation” if every sentence in USER TEXT already ends with . ! or ? (ignore trailing spaces). Never use micro_edit to paste the whole passage with only a trailing period added.
 - Do NOT use the title “Possible sentence-ending punctuation miss” for live reactions, diary/journal voice, fiction beats, or lines that already end with . ! ? including intentional fragments like “I think she will probably.” Treat trailing soft words (probably, maybe, like) before a period as valid voice unless the clause is genuinely unfinished with no terminal mark at all.
@@ -87,10 +99,15 @@ How to give feedback:
 
 Output strictly as JSON: {"suggestions":[{"type":"pattern|coherence|clarity|grammar|punctuation|voice","title":"","body":"","micro_edit":null|string}]}`;
 
-  const systemFinal = coachMode === "typing" ? `${system}${DRAFTING_MODE_APPEND}` : system;
+  const systemFinal =
+    coachMode === "typing" ? `${system}${DRAFTING_MODE_APPEND}` : `${system}${FULL_REVIEW_MODE_APPEND}`;
 
   const personalizationBlock = [audienceLine, goalsLine, toneLine].filter(Boolean).join("\n");
-  const user = `USER TEXT:\n${text}\n\nCONTEXT:\n${ctx}\n\n${focusLine ? `${focusLine}\n\n` : ""}${personalizationBlock ? `PERSONALIZATION:\n${personalizationBlock}\n\n` : ""}${profile}\n\n${profileLine}`;
+  const scopeLine =
+    coachMode === "paused"
+      ? "Read and respond to the **entire** USER TEXT from start to finish—including the last sentences and new paragraphs—not only the opening lines. Ignore keyboard-mash fragments unless the writer clearly intended them as words.\n\n"
+      : "";
+  const user = `${scopeLine}USER TEXT:\n${text}\n\nCONTEXT:\n${ctx}\n\n${focusLine ? `${focusLine}\n\n` : ""}${personalizationBlock ? `PERSONALIZATION:\n${personalizationBlock}\n\n` : ""}${profile}\n\n${profileLine}`;
   return { system: systemFinal, user };
 }
 
@@ -165,7 +182,7 @@ export async function coachWithChatCompletions(
     personalization,
   );
   const previewLimit = coachLogLlmPreviewLimit();
-  const temperature = coachMode === "typing" ? 0.22 : 0.4;
+  const temperature = coachMode === "typing" ? 0.22 : 0.35;
 
   const logBase = {
     ...(logContext.requestId ? { requestId: logContext.requestId } : {}),
