@@ -1,28 +1,25 @@
-﻿import {
-  coachLogLlmEnabled,
-  coachLogLlmPreviewLimit,
-  coachLlmLog,
-  previewText,
-  redactSecrets,
-} from "./log.js";
+﻿const GROQ_BASE = "https://api.groq.com/openai/v1";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
+const OPENAI_MODEL = "gpt-4o-mini";
+const LLM_TIMEOUT_MS = 90_000;
 
 const DRAFTING_MODE_APPEND = `
 
 --- MODE: DRAFTING (user may be mid-sentence) ---
 The excerpt may end mid-thought or mid-sentence. Your job here is spelling and grammar that are visible **right now**:
-- Call out **obvious misspellings** (wrong letters, common confusions like “pregnate”, “recieve”, “definately”)—quote the wrong word in the title or body and give the standard spelling.
-- Call out **clear agreement / word-form errors** that do not need the rest of the paragraph (e.g. “there is so many” → “there are so many”).
+- Call out **obvious misspellings** (wrong letters, common confusions like "pregnate", "recieve", "definately")—quote the wrong word in the title or body and give the standard spelling.
+- Call out **clear agreement / word-form errors** that do not need the rest of the paragraph (e.g. "there is so many" → "there are so many").
 - You may give 1–4 suggestions when those issues exist.
 
-Do NOT give suggestions about: sentence-ending punctuation, missing periods only because the excerpt ends mid-line, “incomplete” last clauses, paragraph breaks, or global flow.
+Do NOT give suggestions about: sentence-ending punctuation, missing periods only because the excerpt ends mid-line, "incomplete" last clauses, paragraph breaks, or global flow.
 
 If USER TEXT contains at least one clear misspelling or agreement error of the kinds above, you MUST return at least one suggestion naming it. Return an empty array only when there are genuinely zero such issues in the visible text.
-In this MODE, ignore any instruction elsewhere in this prompt to always produce 3–5 suggestions or to avoid “nitpicky” spelling callouts—here, spelling and agreement ARE the priority.`;
+In this MODE, ignore any instruction elsewhere in this prompt to always produce 3–5 suggestions or to avoid "nitpicky" spelling callouts—here, spelling and agreement ARE the priority.`;
 
 const FULL_REVIEW_MODE_APPEND = `
 
 --- MODE: FULL REVIEW (paused) ---
-The writer wants **comprehensive** feedback on the **entire** USER TEXT (all paragraphs), aligned with Write Up’s product vision: surface issues *and* pedagogy, without flattening voice.
+The writer wants **comprehensive** feedback on the **entire** USER TEXT (all paragraphs), aligned with Write Up's product vision: surface issues *and* pedagogy, without flattening voice.
 
 You MUST cover three layers in one pass (separate cards, not one vague summary):
 1. **Mechanics** — List **every** clear spelling mistake, wrong word form, and agreement error in passages a human can read. Quote the exact wrong word or phrase in the title. Skip random keyboard-mash tokens at the top unless the writer clearly meant them as words. Do not invent issues.
@@ -73,25 +70,25 @@ export function coachMessages(
       ? `Requested tone direction: ${tonePreference}. Respect this preference without flattening voice.`
       : "";
 
-  const system = `You are Write Up, a sophisticated writing coach for drafts that may be informal, spoken, or literary. Your job is to help the reader understand the writer better—not to flatten personality into generic “correct” prose.
+  const system = `You are Write Up, a sophisticated writing coach for drafts that may be informal, spoken, or literary. Your job is to help the reader understand the writer better—not to flatten personality into generic "correct" prose.
 
 Voice and stance (non-negotiable):
 - Preserve dialect, attitude, humor, emotional heat, and first-person energy. Never scold the writer for sounding casual if the meaning lands.
 - Treat CONTEXT snippets as *teaching material* (principles and examples), not a style to paste over the user. Quote ideas, not wording, unless a micro_edit is truly helpful.
-- PROFILE aggregates describe habits across time; use them only to avoid contradicting the writer’s established voice unless the USER TEXT clearly needs a fix.
+- PROFILE aggregates describe habits across time; use them only to avoid contradicting the writer's established voice unless the USER TEXT clearly needs a fix.
 
 How to give feedback:
-- Prefer **one precise observation + why it matters to a reader** over a list of rules. Separate “pattern / structure” from “local typo / agreement” when both exist.
+- Prefer **one precise observation + why it matters to a reader** over a list of rules. Separate "pattern / structure" from "local typo / agreement" when both exist.
 - When you suggest a wording change, frame it as *optional* and keep it minimal—one clause or sentence, not a full rewrite.
 - On **full review (paused)**, enumerate clear spelling/grammar issues in readable prose and add tone + improvement cards; see MODE appendix.
 - On **drafting (typing)**, prioritize visible spelling/agreement only.
-- Do NOT rewrite the whole passage. Do NOT produce polished “essay voice” unless asked.
-- Include a grammar or punctuation suggestion only when USER TEXT clearly shows that issue (do not invent one to fill a quota). Informal fragments like “Woah”, interjections, and casual tone are allowed when meaning is clear.
-- Do NOT claim “missing sentence-ending punctuation” if every sentence in USER TEXT already ends with . ! or ? (ignore trailing spaces). Never use micro_edit to paste the whole passage with only a trailing period added.
-- Do NOT use the title “Possible sentence-ending punctuation miss” for live reactions, diary/journal voice, fiction beats, or lines that already end with . ! ? including intentional fragments like “I think she will probably.” Treat trailing soft words (probably, maybe, like) before a period as valid voice unless the clause is genuinely unfinished with no terminal mark at all.
+- Do NOT rewrite the whole passage. Do NOT produce polished "essay voice" unless asked.
+- Include a grammar or punctuation suggestion only when USER TEXT clearly shows that issue (do not invent one to fill a quota). Informal fragments like "Woah", interjections, and casual tone are allowed when meaning is clear.
+- Do NOT claim "missing sentence-ending punctuation" if every sentence in USER TEXT already ends with . ! or ? (ignore trailing spaces). Never use micro_edit to paste the whole passage with only a trailing period added.
+- Do NOT use the title "Possible sentence-ending punctuation miss" for live reactions, diary/journal voice, fiction beats, or lines that already end with . ! ? including intentional fragments like "I think she will probably." Treat trailing soft words (probably, maybe, like) before a period as valid voice unless the clause is genuinely unfinished with no terminal mark at all.
 - Do not repeat the same narrow punctuation tip across refreshes if USER TEXT has not clearly introduced a new error of that kind.
 - PROFILE snapshot fields are lifetime aggregates across many drafts; do not treat them as proof the current passage has that defect unless you can point to it in USER TEXT.
-- Each suggestion must include a short “why” tied to reader understanding.
+- Each suggestion must include a short "why" tied to reader understanding.
 - Optional micro_edit: one small alternative phrasing for ONE clause/sentence only, not mandatory.
 - Use the CONTEXT snippets as teaching references, not as rules to copy verbatim.
 - Use PROFILE data to preserve the writer's voice while choosing the smallest high-impact edits.
@@ -131,22 +128,17 @@ export function filterSuggestionsForCoachMode(suggestions, coachMode) {
 }
 
 export function resolveCoachLlmAttempts() {
-  const openaiKey = process.env.OPENAI_API_KEY || "";
   const groqKey = process.env.GROQ_API_KEY || "";
-  const openaiModel = process.env.OPENAI_MODEL || "gpt-4o-mini";
-  const groqBase = (process.env.GROQ_API_BASE || "https://api.groq.com/openai/v1").replace(/\/$/, "");
-  const groqModel = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
-  const coachLlm = String(process.env.COACH_LLM || "auto").toLowerCase();
+  const openaiKey = process.env.OPENAI_API_KEY || "";
 
   const groq = groqKey
-    ? [{ id: "groq", label: "Groq", apiKey: groqKey, baseUrl: groqBase, model: groqModel }]
+    ? [{ id: "groq", label: "Groq", apiKey: groqKey, baseUrl: GROQ_BASE, model: GROQ_MODEL }]
     : [];
   const openai = openaiKey
-    ? [{ id: "openai", label: "OpenAI", apiKey: openaiKey, baseUrl: "https://api.openai.com/v1", model: openaiModel }]
+    ? [{ id: "openai", label: "OpenAI", apiKey: openaiKey, baseUrl: "https://api.openai.com/v1", model: OPENAI_MODEL }]
     : [];
 
-  if (coachLlm === "openai") return [...openai, ...groq];
-  if (coachLlm === "groq") return [...groq, ...openai];
+  // Try Groq first (faster/cheaper), fall back to OpenAI
   return [...groq, ...openai];
 }
 
@@ -159,7 +151,6 @@ export function resolveCoachLlmAttempts() {
  * @param {"typing"|"paused"} coachMode
  * @param {string[]} [focus]
  * @param {{ goals?: string, audience?: string, tonePreference?: "formal"|"neutral"|"casual" }} [personalization]
- * @param {{ requestId?: string, userId?: string }} [logContext] correlated with app-api `X-Request-Id` when proxied
  */
 export async function coachWithChatCompletions(
   text,
@@ -170,7 +161,6 @@ export async function coachWithChatCompletions(
   coachMode = "paused",
   focus = [],
   personalization = {},
-  logContext = {},
 ) {
   const { system, user } = coachMessages(
     text,
@@ -181,38 +171,10 @@ export async function coachWithChatCompletions(
     focus,
     personalization,
   );
-  const previewLimit = coachLogLlmPreviewLimit();
   const temperature = coachMode === "typing" ? 0.22 : 0.35;
 
-  const logBase = {
-    ...(logContext.requestId ? { requestId: logContext.requestId } : {}),
-    ...(logContext.userId ? { userId: logContext.userId } : {}),
-  };
-
-  if (coachLogLlmEnabled()) {
-    coachLlmLog("request", {
-      ...logBase,
-      provider: cfg.id,
-      model: cfg.model,
-      coachMode,
-      temperature,
-      systemChars: system.length,
-      userChars: user.length,
-      systemPreview: previewText(system, previewLimit),
-      userPreview: previewText(user, previewLimit),
-    });
-  }
-
-  let timeoutMs = 90_000;
-  try {
-    const raw = String(process.env.COACH_LLM_HTTP_TIMEOUT_MS || "90000").trim();
-    const n = Number(raw);
-    if (Number.isFinite(n) && n >= 3000) timeoutMs = Math.min(Math.floor(n), 300_000);
-  } catch {
-    /* keep default */
-  }
   const ac = new AbortController();
-  const tid = setTimeout(() => ac.abort(), timeoutMs);
+  const tid = setTimeout(() => ac.abort(), LLM_TIMEOUT_MS);
 
   const url = `${cfg.baseUrl.replace(/\/$/, "")}/chat/completions`;
   let res;
@@ -236,52 +198,16 @@ export async function coachWithChatCompletions(
   } finally {
     clearTimeout(tid);
   }
+
   if (!res.ok) {
-    const errRaw = await res.text();
-    const safe = redactSecrets(errRaw);
-    if (coachLogLlmEnabled()) {
-      coachLlmLog("http_error", {
-        ...logBase,
-        provider: cfg.id,
-        model: cfg.model,
-        status: res.status,
-        bodyPreview: previewText(safe, Math.min(previewLimit, 900)),
-      });
-    }
-    throw new Error(`${cfg.label} error: ${safe.slice(0, 1200)}`);
+    const errText = await res.text();
+    throw new Error(`${cfg.label} error ${res.status}: ${errText.slice(0, 400)}`);
   }
+
   const data = await res.json();
   const raw = data.choices?.[0]?.message?.content || "{}";
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  let parsed;
-  try {
-    parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
-  } catch (e) {
-    if (coachLogLlmEnabled()) {
-      coachLlmLog("parse_error", {
-        ...logBase,
-        provider: cfg.id,
-        model: cfg.model,
-        message: e instanceof Error ? e.message : String(e),
-        rawPreview: previewText(raw, previewLimit),
-      });
-    }
-    throw e;
-  }
+  const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
   const rawList = Array.isArray(parsed.suggestions) ? parsed.suggestions : [];
-  const filtered = filterSuggestionsForCoachMode(rawList, coachMode);
-
-  if (coachLogLlmEnabled()) {
-    coachLlmLog("response", {
-      ...logBase,
-      provider: cfg.id,
-      model: cfg.model,
-      messageChars: raw.length,
-      suggestionsParsed: rawList.length,
-      suggestionsAfterFilter: filtered.length,
-      messagePreview: previewText(raw, previewLimit),
-    });
-  }
-
-  return filtered;
+  return filterSuggestionsForCoachMode(rawList, coachMode);
 }

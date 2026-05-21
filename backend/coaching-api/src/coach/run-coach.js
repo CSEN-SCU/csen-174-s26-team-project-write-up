@@ -16,10 +16,9 @@ import {
 import { dedupeSuggestionTitles, suggestionsToFeedback } from "./format.js";
 import { applyRagFeedbackGuardrails } from "./guardrails.js";
 import { coachWithChatCompletions, resolveCoachLlmAttempts } from "../llm/index.js";
-import { resolveCoachDraftText } from "../integrations/google-docs-mcp.js";
 
-const RAG_TOP_K = Math.max(1, Math.min(24, Number(process.env.RAG_TOP_K || 8)));
-const PAUSED_SUGGESTION_MAX = Math.max(8, Math.min(16, Number(process.env.COACH_PAUSED_MAX_SUGGESTIONS || 14)));
+const RAG_TOP_K = 8;
+const PAUSED_SUGGESTION_MAX = 14;
 
 /** Drop prior draft snapshots that are almost the same as the current pass (reduces Sources noise). */
 function draftsForRetrieval(drafts, currentText) {
@@ -55,8 +54,6 @@ function orderRetrievedChunksForDisplay(chunks) {
  * @param {{ requestId?: string }} [meta] from HTTP `X-Request-Id` (e.g. app-api) for log correlation with `[coach-llm]`
  */
 export async function runCoach(body, meta = {}) {
-  const requestId =
-    typeof meta.requestId === "string" && meta.requestId.trim() ? meta.requestId.trim() : undefined;
   const {
     userId: rawUserId,
     surface = "extension",
@@ -67,13 +64,8 @@ export async function runCoach(body, meta = {}) {
     tonePreference: rawTonePreference,
   } = body || {};
 
-  const resolved = await resolveCoachDraftText(body || {});
-  if (!resolved.ok) {
-    return { error: resolved.error, status: resolved.status || 400 };
-  }
-  const text = resolved.text;
-
-  if (text == null || typeof text !== "string") {
+  const text = typeof body?.text === "string" ? body.text : null;
+  if (text == null) {
     return { error: "Missing text", status: 400 };
   }
   const userId = String(rawUserId || "").trim();
@@ -130,7 +122,6 @@ export async function runCoach(body, meta = {}) {
   const heur = heuristicSuggestions(trimmed, coachMode);
   let llmCards = [];
   let modelUsed = null;
-  const llmLogContext = { requestId, userId };
   const attempts = resolveCoachLlmAttempts();
   for (const cfg of attempts) {
     try {
@@ -143,7 +134,6 @@ export async function runCoach(body, meta = {}) {
         coachMode,
         focus,
         personalization,
-        llmLogContext,
       );
       if (Array.isArray(ai) && ai.length) {
         llmCards = ai;

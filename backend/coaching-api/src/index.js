@@ -1,75 +1,26 @@
 ﻿import "./load-env.js";
 import express from "express";
-import { loadKnowledge, getChunkCount, hasSpellAugment } from "./rag/index.js";
+import { loadKnowledge } from "./rag/index.js";
 import { applyDismiss } from "./profile/index.js";
 import { runCoach } from "./coach/run-coach.js";
-import { resolveCoachLlmAttempts } from "./llm/index.js";
-import { coachLogLlmEnabled, coachLogLlmFullBodies, coachLogLlmPreviewLimit } from "./llm/log.js";
 import {
   assertCoachingInternalSecretConfigured,
   requireCoachingInternalSecret,
 } from "./middleware/internal-secret.js";
-import { coachPostRateLimiter, dismissPostRateLimiter } from "./middleware/coach-rate-limit.js";
 
 const internalSecret = assertCoachingInternalSecretConfigured();
 
 const app = express();
 app.use(express.json({ limit: "512kb" }));
 
-// Public: Express runs middleware in order; these must register before requireCoachingInternalSecret.
-app.get("/", (_req, res) => {
-  res.type("html").send(`<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"/><title>Write Up coaching-api</title></head>
-<body>
-  <p><strong>coaching-api</strong> is running. There is no web UI on this port.</p>
-  <p class="warn"><strong>Auth:</strong> <code>POST /coach</code>, <code>POST /dismiss</code>, and <code>GET /internal/diagnostics</code> require header <code>X-Coaching-Internal-Secret</code> (same value as <code>COACHING_INTERNAL_SECRET</code> in the repo <code>.env</code>). Use <strong>app-api</strong> <code>POST http://127.0.0.1:5050/coach</code> from the webapp or extension—it adds that header for you.</p>
-  <p><code>GET /</code> and <code>GET /health</code> are open for this page and liveness checks only.</p>
-  <ul>
-    <li><code>GET /health</code> — liveness (<code>{"ok":true}</code>)</li>
-    <li><code>GET /internal/diagnostics</code> — LLM/RAG/MCP flags (requires secret header)</li>
-    <li>POST /coach — JSON body: <code>{"text":"...","userId":"stable-id",...}</code> (optional <code>goals</code>, <code>audience</code>, <code>tonePreference</code>: formal|neutral|casual) or MCP mode <code>{"use_mcp":true,"doc_id":"…","userId":"…","text":""}</code> with <code>GOOGLE_DOCS_ACCESS_TOKEN</code> or <code>GOOGLE_DOCS_MCP_BRIDGE_URL</code> set on the server</li>
-    <li>POST /dismiss — optional feedback dismiss events</li>
-  </ul>
-</body>
-</html>`);
-});
-
-app.get("/health", (_req, res) => {
-  res.json({ ok: true });
-});
+app.get("/", (_req, res) => res.json({ ok: true, service: "coaching-api" }));
+app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use(requireCoachingInternalSecret(internalSecret));
 
-function diagnosticsPayload() {
-  const attempts = resolveCoachLlmAttempts();
-  return {
-    ok: true,
-    service: "coaching-api",
-    chunks: getChunkCount(),
-    hasOpenAI: Boolean(process.env.OPENAI_API_KEY),
-    hasGroq: Boolean(process.env.GROQ_API_KEY),
-    coachLlm: String(process.env.COACH_LLM || "auto").toLowerCase(),
-    coachLlmOrder: attempts.map((a) => a.id),
-    hasCoachLlm: attempts.length > 0,
-    ragTopK: Math.max(1, Math.min(24, Number(process.env.RAG_TOP_K || 8))),
-    spellchecker: hasSpellAugment(),
-    coachLogLlm: coachLogLlmEnabled(),
-    coachLogLlmFull: coachLogLlmFullBodies(),
-    coachLogLlmPreview: coachLogLlmPreviewLimit(),
-    googleDocsMcpBridge: Boolean((process.env.GOOGLE_DOCS_MCP_BRIDGE_URL || "").trim()),
-    googleDocsAccessToken: Boolean((process.env.GOOGLE_DOCS_ACCESS_TOKEN || "").trim()),
-  };
-}
-
-app.get("/internal/diagnostics", (_req, res) => {
-  res.json(diagnosticsPayload());
-});
-
-app.post("/coach", coachPostRateLimiter, async (req, res) => {
+app.post("/coach", async (req, res) => {
   try {
-    const requestId = String(req.get("x-request-id") || "").trim() || undefined;
-    const result = await runCoach(req.body || {}, { requestId });
+    const result = await runCoach(req.body || {});
     if (result.error) {
       return res.status(result.status || 400).json({ error: result.error });
     }
@@ -80,7 +31,7 @@ app.post("/coach", coachPostRateLimiter, async (req, res) => {
   }
 });
 
-app.post("/dismiss", dismissPostRateLimiter, async (req, res) => {
+app.post("/dismiss", async (req, res) => {
   try {
     const { userId = "anonymous", ...rest } = req.body || {};
     const profileSnapshot = await applyDismiss(userId, rest);
@@ -91,15 +42,8 @@ app.post("/dismiss", dismissPostRateLimiter, async (req, res) => {
   }
 });
 
-const port = Number(process.env.PORT || 8787);
-const listenHost = (process.env.COACHING_LISTEN_HOST || "127.0.0.1").trim() || "127.0.0.1";
+await loadKnowledge().catch((e) => console.error("Failed to load RAG corpus:", e));
 
-await loadKnowledge().catch((e) => {
-  console.error("Failed to load RAG corpus:", e);
-});
-
-app.listen(port, listenHost, () =>
-  console.log(
-    `coaching-api on http://${listenHost}:${port} (GET / and /health public; other routes need X-Coaching-Internal-Secret)`,
-  ),
+app.listen(8787, "127.0.0.1", () =>
+  console.log("coaching-api on http://127.0.0.1:8787"),
 );
