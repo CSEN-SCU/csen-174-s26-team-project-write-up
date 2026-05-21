@@ -1,7 +1,5 @@
 {
   "installCommand": "npm ci",
-  "buildCommand": "mkdir -p public",
-  "outputDirectory": "public",
   "functions": {
     "api/index.js": {
       "includeFiles": "knowledge/**"
