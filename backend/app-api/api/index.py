@@ -1,1 +1,1 @@
-from app import app as handler
+from app import app
