@@ -22,17 +22,35 @@ export class ApiError extends Error {
 
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
 
-/** Absolute app-api base (no trailing slash). Unset in local dev → Vite proxy uses same-origin relative paths. */
-const APP_API_BASE =
-  typeof import.meta.env.VITE_APP_API_BASE_URL === "string"
-    ? import.meta.env.VITE_APP_API_BASE_URL.trim().replace(/\/+$/, "")
-    : "";
+function readBase(name) {
+  const raw = import.meta.env[name];
+  return typeof raw === "string" ? raw.trim().replace(/\/+$/, "") : "";
+}
 
-function resolveApiUrl(path) {
-  if (!path.startsWith("/") || !APP_API_BASE) {
-    return path;
+/**
+ * Ordered list of app-api bases to try per request.
+ *   1. VITE_APP_API_PROD_URL   - tried first
+ *   2. VITE_APP_API_DEV_URL    - tried only if prod fails (network error or 5xx)
+ *   3. VITE_APP_API_BASE_URL   - legacy single-URL fallback
+ * If nothing is set we fall back to an empty base so paths stay relative
+ * (which lets Vite's dev proxy do its thing locally).
+ * 4xx responses do NOT trigger fallback — those are real client errors that
+ * the next base would reject the same way.
+ */
+const APP_API_BASES = (() => {
+  const prod = readBase("VITE_APP_API_PROD_URL");
+  const dev = readBase("VITE_APP_API_DEV_URL");
+  const legacy = readBase("VITE_APP_API_BASE_URL");
+  const ordered = [];
+  for (const base of [prod, dev, legacy]) {
+    if (base && !ordered.includes(base)) ordered.push(base);
   }
-  return `${APP_API_BASE}${path}`;
+  return ordered.length ? ordered : [""];
+})();
+
+function resolveApiUrl(path, base) {
+  if (!path.startsWith("/") || !base) return path;
+  return `${base}${path}`;
 }
 
 /** @type {null | (() => Promise<string | null>)} */
@@ -82,23 +100,40 @@ export async function apiFetch(path, options = {}) {
 
   init.headers = await mergeAuthHeaders(init.headers || {});
 
-  let res;
-  try {
-    res = await fetch(resolveApiUrl(path), init);
-  } catch (networkErr) {
-    if (isSafe && fallback !== undefined) return fallback;
-    throw new ApiError("network_error", { status: 0, code: "network_error" });
-  }
+  // Track the most recent failure so we can surface it if every base fails.
+  // 4xx aborts the chain immediately because retrying won't help.
+  let lastFailure = null;
 
-  const body = await parseBody(res);
+  for (const base of APP_API_BASES) {
+    let res;
+    try {
+      res = await fetch(resolveApiUrl(path, base), init);
+    } catch {
+      lastFailure = { kind: "network" };
+      continue;
+    }
 
-  if (!res.ok) {
+    const body = await parseBody(res);
+
+    if (res.ok) return body;
+
+    if (res.status >= 500) {
+      lastFailure = { kind: "http", status: res.status, body };
+      continue;
+    }
+
     const code = (body && body.error) || `http_${res.status}`;
-    if (isSafe && fallback !== undefined && res.status >= 500) return fallback;
     throw new ApiError(code, { status: res.status, code, data: body });
   }
 
-  return body;
+  if (isSafe && fallback !== undefined) return fallback;
+
+  if (lastFailure?.kind === "http") {
+    const code = (lastFailure.body && lastFailure.body.error) || `http_${lastFailure.status}`;
+    throw new ApiError(code, { status: lastFailure.status, code, data: lastFailure.body });
+  }
+
+  throw new ApiError("network_error", { status: 0, code: "network_error" });
 }
 
 export const api = {
