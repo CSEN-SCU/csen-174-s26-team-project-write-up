@@ -1,4 +1,6 @@
 {
   "installCommand": "echo skip-npm-for-python",
+  "buildCommand": "mkdir -p public",
+  "outputDirectory": "public",
   "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
 }
