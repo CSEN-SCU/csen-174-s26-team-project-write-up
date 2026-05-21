@@ -5,19 +5,14 @@ from __future__ import annotations
 import json
 import logging
 import os
-import time
 import uuid
-from datetime import datetime, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from flask import Blueprint, g, jsonify, request
-from flask_limiter.util import get_remote_address
 
 from auth import require_auth
-from errors import ApiError
-from extensions import limiter
 
 log = logging.getLogger(__name__)
 
@@ -26,60 +21,22 @@ bp = Blueprint("coach_proxy", __name__)
 _COACHING_INTERNAL_HEADER = "X-Coaching-Internal-Secret"
 
 
-def _coaching_internal_secret() -> str:
-    s = os.environ.get("COACHING_INTERNAL_SECRET", "").strip()
-    if not s:
-        raise ApiError(
-            "server_misconfigured",
-            503,
-            "Set COACHING_INTERNAL_SECRET on app-api (same value as coaching-api).",
-        )
-    return s
-
-
 def _coaching_base_url() -> str:
     return os.environ.get("COACHING_API_BASE_URL", "http://127.0.0.1:8787").strip().rstrip("/")
 
 
 def _timeout_s() -> float:
-    raw = os.environ.get("COACHING_HTTP_TIMEOUT_S", "120")
     try:
-        return max(1.0, float(raw))
+        return max(1.0, float(os.environ.get("COACHING_HTTP_TIMEOUT_S", "120")))
     except ValueError:
         return 120.0
 
 
-def _coach_proxy_log_enabled() -> bool:
-    v = os.environ.get("APP_COACH_PROXY_LOG", "").lower().strip()
-    return v in ("1", "true", "yes", "y", "on")
-
-
-def _log_coach_proxy_access(
-    *,
-    request_id: str,
-    path: str,
-    upstream_status: int,
-    duration_ms: float,
-) -> None:
-    if not _coach_proxy_log_enabled():
-        return
-    uid = getattr(g, "user_id", None)
-    line = json.dumps(
-        {
-            "t": datetime.now(timezone.utc).isoformat(),
-            "event": "coach_proxy_upstream",
-            "requestId": request_id,
-            "path": path,
-            "upstreamStatus": upstream_status,
-            "durationMs": round(duration_ms, 2),
-            "userId": uid,
-        },
-        separators=(",", ":"),
-    )
-    log.info("[coach-proxy] %s", line)
-
-
 def _forward_post(path: str, payload: dict[str, Any]) -> tuple[Any, int]:
+    secret = os.environ.get("COACHING_INTERNAL_SECRET", "").strip()
+    if not secret:
+        return {"ok": False, "error": "server_misconfigured"}, 503
+
     base = _coaching_base_url()
     url = f"{base}{path}"
     rid = (request.headers.get("X-Request-Id") or "").strip() or str(uuid.uuid4())
@@ -91,64 +48,31 @@ def _forward_post(path: str, payload: dict[str, Any]) -> tuple[Any, int]:
             "Content-Type": "application/json",
             "Accept": "application/json",
             "X-Request-Id": rid,
-            _COACHING_INTERNAL_HEADER: _coaching_internal_secret(),
+            _COACHING_INTERNAL_HEADER: secret,
         },
         method="POST",
     )
-    timeout = _timeout_s()
-    t0 = time.perf_counter()
     try:
-        with urlopen(req, timeout=timeout) as resp:  # noqa: S310 - URL from env, not user input
+        with urlopen(req, timeout=_timeout_s()) as resp:  # noqa: S310
             raw = resp.read().decode("utf-8")
             status = int(resp.getcode() or 200)
     except HTTPError as e:
         raw = e.read().decode("utf-8", errors="replace") if e.fp else ""
         status = int(e.code or 502)
-        log.warning(
-            "Coaching upstream HTTP %s url=%s request_id=%s preview=%s",
-            status,
-            url,
-            rid,
-            (raw[:400] + "…") if len(raw) > 400 else raw,
-        )
-    except TimeoutError as e:
-        elapsed_ms = (time.perf_counter() - t0) * 1000
-        log.warning(
-            "Coaching upstream timeout url=%s request_id=%s duration_ms=%.2f",
-            url,
-            rid,
-            elapsed_ms,
-        )
-        raise ApiError("coaching_timeout", 504, "Coaching service timed out") from e
-    except URLError as e:
-        elapsed_ms = (time.perf_counter() - t0) * 1000
-        log.warning(
-            "Coaching upstream unreachable url=%s err=%s request_id=%s duration_ms=%.2f",
-            url,
-            e,
-            rid,
-            elapsed_ms,
-        )
-        raise ApiError("coaching_upstream", 502, "Coaching service unreachable") from e
+        log.warning("Coaching upstream HTTP %s url=%s rid=%s", status, url, rid)
+    except TimeoutError:
+        log.warning("Coaching upstream timeout url=%s rid=%s", url, rid)
+        return {"ok": False, "error": "coaching_timeout"}, 504
+    except URLError:
+        log.warning("Coaching upstream unreachable url=%s rid=%s", url, rid)
+        return {"ok": False, "error": "coaching_upstream"}, 502
 
     try:
         data = json.loads(raw) if raw else {}
     except json.JSONDecodeError:
-        log.warning(
-            "Coaching non-JSON status=%s preview=%s request_id=%s",
-            status,
-            raw[:240],
-            rid,
-        )
-        raise ApiError("coaching_bad_response", 502, "Invalid JSON from coaching service")
+        log.warning("Coaching non-JSON status=%s rid=%s preview=%s", status, rid, raw[:240])
+        return {"ok": False, "error": "coaching_bad_response"}, 502
 
-    elapsed_ms = (time.perf_counter() - t0) * 1000
-    _log_coach_proxy_access(
-        request_id=rid,
-        path=path,
-        upstream_status=status,
-        duration_ms=elapsed_ms,
-    )
     return data, status
 
 
@@ -156,42 +80,20 @@ def _force_uid_payload() -> dict[str, Any]:
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
         body = {}
-    client_uid = body.get("userId")
-    if client_uid is not None and str(client_uid) != str(g.user_id):
-        log.warning("Body userId does not match token uid (using token): client=%s", client_uid)
     out = dict(body)
     out["userId"] = g.user_id
     return out
 
 
-def _authenticated_user_limit_key() -> str:
-    uid = getattr(g, "user_id", None)
-    if uid is not None:
-        return f"uid:{uid}"
-    return f"ip:{get_remote_address()}"
-
-
-def _coach_rate_limit_string() -> str:
-    return os.environ.get("APP_COACH_RATE_LIMIT", "20 per minute").strip() or "20 per minute"
-
-
-def _dismiss_rate_limit_string() -> str:
-    return os.environ.get("APP_DISMISS_RATE_LIMIT", "60 per minute").strip() or "60 per minute"
-
-
 @bp.post("/coach")
 @require_auth
-@limiter.limit(_coach_rate_limit_string(), key_func=_authenticated_user_limit_key)
 def proxy_coach():
-    payload = _force_uid_payload()
-    data, status = _forward_post("/coach", payload)
+    data, status = _forward_post("/coach", _force_uid_payload())
     return jsonify(data), status
 
 
 @bp.post("/dismiss")
 @require_auth
-@limiter.limit(_dismiss_rate_limit_string(), key_func=_authenticated_user_limit_key)
 def proxy_dismiss():
-    payload = _force_uid_payload()
-    data, status = _forward_post("/dismiss", payload)
+    data, status = _forward_post("/dismiss", _force_uid_payload())
     return jsonify(data), status

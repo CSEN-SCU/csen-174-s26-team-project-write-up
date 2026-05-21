@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from flask import Blueprint, g, jsonify, request
 
 from auth import require_auth
-from errors import safe_firestore
 from firebase.init import get_db
 
 bp = Blueprint("dismissals", __name__)
@@ -24,12 +23,12 @@ def dismissals_add():
     if not card_id:
         return jsonify(ok=False, error="missing_card"), 400
 
-    now = datetime.now(timezone.utc).isoformat()
-    doc_id = f"{g.user_id}_{card_id}_{uuid.uuid4().hex[:12]}"
     sources = body.get("sources")
     if sources is not None and not isinstance(sources, list):
         return jsonify(ok=False, error="invalid_sources"), 400
 
+    now = datetime.now(timezone.utc).isoformat()
+    doc_id = f"{g.user_id}_{card_id}_{uuid.uuid4().hex[:12]}"
     record: dict = {
         "userId": g.user_id,
         "cardId": str(card_id).strip()[:200],
@@ -42,12 +41,8 @@ def dismissals_add():
     if isinstance(sources, list):
         record["sources"] = sources
 
-    def _write():
-        db = get_db()
-        db.collection(COLLECTION).document(doc_id).set(record)
-        return doc_id
-
-    out, err = safe_firestore(_write)
-    if err is not None:
-        return jsonify(ok=False, error=err.code), err.status
-    return jsonify(ok=True, id=out), 200
+    try:
+        get_db().collection(COLLECTION).document(doc_id).set(record)
+        return jsonify(ok=True, id=doc_id), 200
+    except Exception:
+        return jsonify(ok=False, error="internal_error"), 500

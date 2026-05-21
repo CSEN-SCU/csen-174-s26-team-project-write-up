@@ -2,6 +2,27 @@
 
 The backend for this project is split into app-api and coaching-api, both of which need separate Vercel deployments.
 
+## Progress
+
+### app-api
+- [x] `firebase/init.py` — fixed broken imports, defined `FirebaseNotConfiguredError`, `_resolve_credentials_path`, `get_db()`
+- [x] `app.py` — removed dev bypass, repo-root env load, limiter, Chrome extension CORS, deleted route blueprints; simplified CORS and error handlers
+- [x] `auth.py` — removed bypass logic, `_DEV_BYPASS_ENVS`, `_bypass_allowed()`, `errors.ApiError`, `services.verify_google_token`; now calls `firebase_auth.verify_id_token` directly; returns JSON 401 tuples inline instead of raising exceptions
+- [x] `routes/coach_proxy.py` — removed `limiter`, `errors.ApiError`, `extensions`, `flask_limiter`; removed `@limiter.limit` decorators, `_authenticated_user_limit_key`, rate limit string helpers, structured JSON proxy logging (`_log_coach_proxy_access`, `_coach_proxy_log_enabled`), `time`/`datetime` imports; `_forward_post` now returns error tuples inline instead of raising; `_force_uid_payload` simplified (removed mismatch warning)
+- [x] `routes/documents.py` — removed `errors.safe_firestore`, `local_store`; stripped all `use_local_store()` branches; inlined Firestore calls directly in each route with plain `try/except`; removed inner `_read`/`_write` helper functions (only existed to support the `safe_firestore` pattern)
+- [x] Delete files: removed `dev_defaults.py`, `local_store.py`, `errors.py`, `extensions.py`, `routes/coaching_feedback_map.py`, `routes/feedback_history.py`, and all 8 test/unit files (`api_unit_test.py`, `test_auth.py`, `test_coaching_feedback_map.py`, `test_coach_proxy.py`, `test_documents.py`, `test_errors.py`, `test_firebase_init.py`, `test_local_store.py`); `routes/auth_google.py`, `google/`, and `scripts/` were already absent from the filesystem
+- [x] Fixed broken imports found in remaining routes (missed in step 4): `users.py` and `preferences.py` imported from non-existent `services` module — inlined Firestore calls directly; `dismissals.py` and `onboarding.py` imported `safe_firestore` from deleted `errors.py` — replaced with inline try/except
+- [x] Created `api/index.py` (`from app import app as handler`) and `vercel.json`
+- [x] Trimmed `requirements.txt`: removed `Flask-Limiter` (limiter deleted), `google-auth` and `google-auth-oauthlib` (Google OAuth deleted); kept `flask`, `flask-cors`, `python-dotenv`, `firebase-admin`
+
+### coaching-api
+- [ ] Rewrite `load-env.js`
+- [ ] Hardcode config in `llm/index.js`, remove LLM logging
+- [ ] Delete: `llm/log.js`, `middleware/coach-rate-limit.js`, `integrations/`, test files
+- [ ] Fix `paths.js` profile path for serverless (`/tmp`)
+- [ ] Simplify `src/index.js`
+- [ ] Create `api/index.js` and `vercel.json`
+
 ## app-api Goals
 
 app-api is currently a Flask server serving Firebase-related routes. It needs to be rewritten into a serverless architecture.
@@ -9,7 +30,7 @@ app-api is currently a Flask server serving Firebase-related routes. It needs to
 Rewrite the directory completely to follow new design patterns:
 
 - All env vars needed should be defined in this project's directory only — nothing loaded from the repo root or app-api siblings
-- `firebase/init.py` is the source of truth for Firebase initialization, but it is currently **broken**: it references `os`, `json`, `_resolve_credentials_path`, and `FirebaseNotConfiguredError` without importing or defining them. Fix these before using it as reference.
+- `firebase/init.py` is the source of truth for Firebase initialization. It defines `ensure_firebase_app()`, `get_db()`, `FirebaseNotConfiguredError`, and `_resolve_credentials_path()`. Use it as-is.
 - Remove all mentions of "auth bypass" or dev-only behavior — `dev_defaults.py` exists solely for this purpose and should be deleted entirely
 - Tests are extra — if a test fails or is too much to refactor, simply delete it
 

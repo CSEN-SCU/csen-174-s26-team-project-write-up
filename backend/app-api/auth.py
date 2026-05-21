@@ -1,81 +1,39 @@
 """Firebase ID token enforcement for Flask routes."""
 
 import logging
-import os
 from functools import wraps
 
-from flask import g, request
+from firebase_admin import auth as firebase_auth
+from flask import g, jsonify, request
 
-from errors import ApiError
-from services import verify_google_token
+from firebase.init import ensure_firebase_app
 
 log = logging.getLogger(__name__)
 
-_DEV_BYPASS_ENVS = frozenset({"dev", "test"})
-
-
-def _bypass_allowed() -> bool:
-    auth_bp = os.environ.get("APP_AUTH_BYPASS", "").strip()
-    env = os.environ.get("APP_ENV", "dev").strip().lower()
-    return auth_bp == "1" and env in _DEV_BYPASS_ENVS
-
 
 def require_auth(view):
-    """Decorator: verify Firebase ID token; attach uid/email/name on flask.g.
-
-    Dev-only bypass (never use in prod): set APP_AUTH_BYPASS=1 and APP_ENV to
-    dev or test, then send X-Debug-User with a synthetic uid.
-    """
+    """Decorator: verify Firebase ID token and attach uid/email/name to flask.g."""
 
     @wraps(view)
     def wrapped(*args, **kwargs):
         header = request.headers.get("Authorization", "")
-        has_bearer = header.lower().startswith("bearer ")
-        token = header.split(" ", 1)[1].strip() if has_bearer else ""
+        if not header.lower().startswith("bearer "):
+            return jsonify(ok=False, error="unauthenticated", message="Authorization: Bearer <token> required"), 401
 
-        # Signed-in webapp/extension: verify Firebase even when APP_AUTH_BYPASS=1.
-        if token:
-            try:
-                user = verify_google_token(token)
-            except ApiError:
-                raise
-            except Exception as exc:  # noqa: BLE001 - boundary
-                log.warning("verify_id_token failed: %s", exc)
-                raise ApiError(
-                    "unauthenticated",
-                    401,
-                    "Invalid or expired ID token",
-                ) from exc
+        token = header.split(" ", 1)[1].strip()
+        if not token:
+            return jsonify(ok=False, error="unauthenticated", message="Empty Bearer token"), 401
 
-            g.user_id = user["uid"]
-            g.user_email = user.get("email")
-            g.user_name = user.get("name")
-            return view(*args, **kwargs)
+        try:
+            ensure_firebase_app()
+            decoded = firebase_auth.verify_id_token(token)
+        except Exception as exc:
+            log.warning("verify_id_token failed: %s", exc)
+            return jsonify(ok=False, error="unauthenticated", message="Invalid or expired token"), 401
 
-        if _bypass_allowed():
-            debug_uid = request.headers.get("X-Debug-User")
-            if debug_uid:
-                log.warning(
-                    "APP_AUTH_BYPASS: trusting X-Debug-User=%s", debug_uid,
-                )
-                g.user_id = debug_uid.strip()
-                g.user_email = request.headers.get("X-Debug-Email")
-                g.user_name = request.headers.get("X-Debug-Name")
-                return view(*args, **kwargs)
-            raise ApiError(
-                "missing_debug_user",
-                401,
-                "APP_AUTH_BYPASS is on: sign in (Bearer token) or send header X-Debug-User. "
-                "If you use the extension against localhost, reload the extension after clearing a stale firebaseIdToken.",
-            )
-
-        if has_bearer:
-            raise ApiError("missing_token", 401, "Empty Bearer token")
-
-        raise ApiError(
-            "missing_token",
-            401,
-            "Authorization: Bearer <id_token> required",
-        )
+        g.user_id = decoded["uid"]
+        g.user_email = decoded.get("email")
+        g.user_name = decoded.get("name")
+        return view(*args, **kwargs)
 
     return wrapped

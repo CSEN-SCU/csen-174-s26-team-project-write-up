@@ -1,7 +1,7 @@
 ﻿from flask import Blueprint, g, jsonify, request
 
 from auth import require_auth
-from services import get_user_preferences, update_user_preferences
+from firebase.init import get_db
 
 bp = Blueprint("preferences", __name__)
 
@@ -9,12 +9,20 @@ bp = Blueprint("preferences", __name__)
 @bp.get("/preferences")
 @require_auth
 def prefs_get():
-    return jsonify(preferences=get_user_preferences(g.user_id)), 200
+    try:
+        snap = get_db().collection("users").document(g.user_id).get()
+        data = snap.to_dict() or {} if snap.exists else {}
+        return jsonify(preferences=data.get("preferences", {})), 200
+    except Exception:
+        return jsonify(ok=False, error="internal_error"), 500
 
 
 @bp.put("/preferences")
 @require_auth
 def prefs_put():
     body = request.get_json(silent=True) or {}
-    update_user_preferences(g.user_id, body)
-    return jsonify(ok=True), 200
+    try:
+        get_db().collection("users").document(g.user_id).set({"preferences": body}, merge=True)
+        return jsonify(ok=True), 200
+    except Exception:
+        return jsonify(ok=False, error="internal_error"), 500

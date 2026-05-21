@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from flask import Blueprint, g, jsonify, request
 
 from auth import require_auth
-from errors import safe_firestore
 from firebase.init import get_db
 
 bp = Blueprint("onboarding", __name__)
@@ -38,13 +37,8 @@ def onboarding_create():
     if body.get("experienceLevel") is not None:
         patch["onboardingExperienceLevel"] = str(body.get("experienceLevel"))[:120]
 
-    def _write():
-        db = get_db()
-        ref = db.collection("users").document(g.user_id)
-        ref.set(patch, merge=True)
-        return True
-
-    _, err = safe_firestore(_write)
-    if err is not None:
-        return jsonify(ok=False, error=err.code), err.status
-    return jsonify(ok=True), 200
+    try:
+        get_db().collection("users").document(g.user_id).set(patch, merge=True)
+        return jsonify(ok=True), 200
+    except Exception:
+        return jsonify(ok=False, error="internal_error"), 500
