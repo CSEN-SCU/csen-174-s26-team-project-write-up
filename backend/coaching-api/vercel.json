@@ -1,4 +1,5 @@
 {
+  "installCommand": "npm ci",
   "functions": {
     "api/index.js": {
       "includeFiles": "knowledge/**"

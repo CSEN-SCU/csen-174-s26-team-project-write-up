@@ -1,3 +1,4 @@
 {
+  "installCommand": "echo skip-npm-for-python",
   "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
 }
