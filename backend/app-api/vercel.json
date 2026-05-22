@@ -3,6 +3,6 @@
   "buildCommand": "mkdir -p public",
   "outputDirectory": "public",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/$1" }
+    { "source": "/(.*)", "destination": "/api/index" }
   ]
 }

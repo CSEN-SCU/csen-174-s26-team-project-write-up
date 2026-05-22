@@ -63,12 +63,12 @@ CORS(app, resources={r"/*": {
     "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 }})
 
-app.register_blueprint(users_bp)
-app.register_blueprint(onboarding_bp)
-app.register_blueprint(dismissals_bp)
-app.register_blueprint(prefs_bp)
+app.register_blueprint(users_bp, url_prefix="/api")
+app.register_blueprint(onboarding_bp, url_prefix="/api")
+app.register_blueprint(dismissals_bp, url_prefix="/api")
+app.register_blueprint(prefs_bp, url_prefix="/api")
 app.register_blueprint(coach_proxy_bp)
-app.register_blueprint(documents_bp)
+app.register_blueprint(documents_bp, url_prefix="/api")
 
 
 @app.get("/")
