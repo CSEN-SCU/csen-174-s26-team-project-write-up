@@ -7,7 +7,7 @@ const policySections = [
   {
     title: "Writing and coaching activity",
     body:
-      "The product may save writing samples, document identifiers, feedback history, suggested corrections, explanations, accepted suggestions, dismissed suggestions, profile preferences, and onboarding responses. This helps the coach notice patterns over time instead of treating each draft as a one-time correction.",
+      "The product may save writing samples, document identifiers, feedback history, suggested corrections, explanations, accepted suggestions, dismissed suggestions, and profile preferences. This helps the coach notice patterns over time instead of treating each draft as a one-time correction.",
   },
   {
     title: "User activity and interaction context",
@@ -74,8 +74,8 @@ export default function PrivacyPolicy() {
           <p>
             Writing context and feedback requests may be sent to backend services and AI systems to
             generate suggestions. Saved information may be associated with your signed-in account so
-            you can review past coaching, continue onboarding, and help the assistant avoid repeating
-            suggestions you dismissed.
+            you can review past coaching and help the assistant avoid repeating suggestions you
+            dismissed.
           </p>
         </section>
 

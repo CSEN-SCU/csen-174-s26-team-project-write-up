@@ -135,8 +135,6 @@ export default function Profile() {
                   )}
                   {!meLoading && serverProfile && Object.keys(serverProfile).length > 0 && (
                     <dl className="profile-page__joined">
-                      <dt>Onboarding</dt>
-                      <dd>{serverProfile.onboardingComplete ? "Complete" : "Not completed"}</dd>
                       {serverProfile.createdAt && (
                         <>
                           <dt>Profile stored</dt>

@@ -2,7 +2,8 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; font-family: var(--font-body); background: var(--color-paper); color: var(--color-ink); }
-.topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--color-rule); }
+.topbar { display: flex; justify-content: flex-start; align-items: center; gap: 28px; padding: 12px 16px; border-bottom: 1px solid var(--color-rule); }
+.topbar h1 { margin: 0; }
 .topbar nav { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 .topbar a { color: var(--color-ink); text-decoration: none; font-weight: 600; }
 .topbar-auth-cluster { display: inline-flex; align-items: center; gap: 8px; margin-left: 4px; }
@@ -1139,7 +1140,7 @@ main { padding: 16px; }
 .page.privacy-page .privacy-page__intro,
 .page.privacy-page .privacy-page__notice {
   margin-bottom: var(--space-6);
-  padding: var(--space-5);
+  padding: var(--space-6);
   border-radius: var(--radius-md);
   border: 1px solid var(--dash-sage-line);
   background: rgba(255, 255, 255, 0.56);
@@ -1169,13 +1170,13 @@ main { padding: 16px; }
 .page.privacy-page .privacy-page__notice p {
   margin: 0;
   font-size: 0.94rem;
-  line-height: 1.62;
+  line-height: 1.68;
   color: var(--dash-ink-soft);
 }
 
 .page.privacy-page .privacy-page__card-grid {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-6);
 }
 
 @media (min-width: 720px) {
@@ -1185,7 +1186,7 @@ main { padding: 16px; }
 }
 
 .page.privacy-page .privacy-page__card {
-  padding: var(--space-5);
+  padding: var(--space-6);
   border-radius: var(--radius-md);
   border: 1px solid var(--dash-sage-line);
   background: rgba(255, 255, 255, 0.62);
@@ -1203,6 +1204,6 @@ main { padding: 16px; }
 .page.privacy-page .privacy-page__card p {
   margin: 0;
   font-size: 0.91rem;
-  line-height: 1.58;
+  line-height: 1.64;
   color: var(--dash-ink-soft);
 }

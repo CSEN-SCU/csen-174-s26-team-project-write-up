@@ -41,8 +41,8 @@ export default function Dashboard() {
             <Link className="dashboard__btn dashboard__btn--primary" to="/write">
               Open web editor
             </Link>
-            <Link className="dashboard__btn dashboard__btn--ghost" to="/onboarding">
-              Start onboarding
+            <Link className="dashboard__btn dashboard__btn--ghost" to="/profile">
+              View profile
             </Link>
             <Link className="dashboard__btn dashboard__btn--ghost" to="/history">
               View History demo
@@ -102,12 +102,12 @@ export default function Dashboard() {
         <footer className="dashboard__footer-cta">
           <p className="dashboard__footer-copy">
             The extension is shaping up as a conscientious collaborator: diagnosing trends, illuminating why something matters pedagogically,
-            and offering bite-sized rehearsals instead of laundering your prose through generic “perfect English.” Explore the onboarding flow or
-            open History to skim the scaffolding we iterate on inside the classroom.
+            and offering bite-sized rehearsals instead of laundering your prose through generic “perfect English.” Open History to skim the
+            scaffolding we iterate on inside the classroom.
           </p>
           <div className="dashboard__hero-actions">
-            <Link className="dashboard__btn dashboard__btn--primary" to="/onboarding">
-              Continue to onboarding
+            <Link className="dashboard__btn dashboard__btn--primary" to="/write">
+              Start writing
             </Link>
             <Link className="dashboard__btn dashboard__btn--ghost" to="/profile">
               Open profile

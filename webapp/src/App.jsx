@@ -1,7 +1,6 @@
 ﻿import { BrowserRouter, Link, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import Dashboard from "./pages/Dashboard";
-import Onboarding from "./pages/Onboarding";
 import History from "./pages/History";
 import Profile from "./pages/Profile";
 import ExtensionAuth from "./pages/ExtensionAuth";
@@ -42,11 +41,10 @@ export default function App() {
           <nav>
             <Link to="/">Dashboard</Link>
             <Link to="/write">Write</Link>
-            <Link to="/onboarding">Onboarding</Link>
             <Link to="/history">History</Link>
             <Link to="/profile">Profile</Link>
             <Link to="/extension-auth">Extension</Link>
-            <Link to="/privacy">Privacy Policy</Link>
+            <Link to="/privacy">Privacy</Link>
             <TopbarAuth />
           </nav>
         </header>
@@ -54,7 +52,6 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/write" element={<Write />} />
-            <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/history" element={<History />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/extension-auth" element={<ExtensionAuth />} />
