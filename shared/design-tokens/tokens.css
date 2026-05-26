@@ -1,9 +1,12 @@
 ﻿:root {
-  --color-ink: #121212;
-  --color-paper: #f4f1eb;
-  --color-coral: #c24b3a;
-  --color-coral-soft: rgba(194, 75, 58, 0.12);
-  --color-rule: rgba(18, 18, 18, 0.12);
+  --color-paper: #fbfeff;
+  --color-surface: #fbfeff;
+  --color-ink: #152d55;
+  --color-teal: #7fc1c1;
+  --color-plum: #8a6392;
+  --color-coral: #8a6392;
+  --color-coral-soft: rgba(138, 99, 146, 0.24);
+  --color-rule: rgba(127, 193, 193, 0.42);
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
