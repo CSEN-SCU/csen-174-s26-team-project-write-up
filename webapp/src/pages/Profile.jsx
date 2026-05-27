@@ -1,14 +1,6 @@
-﻿import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { ApiError, api } from "../lib/api";
-
-const STAT_ROWS = [
-  { label: "Corrections you confirmed", value: "47" },
-  { label: "Mini practice loops", value: "12" },
-  { label: "Documents with feedback streak", value: "6" },
-  { label: "Voice notes archived", value: "3" },
-  { label: "Last coached session", value: "Today · 10:42 a.m." },
-];
 
 const DEFAULT_PREFS = {
   writingLevel: "Undergraduate",
@@ -120,6 +112,9 @@ export default function Profile() {
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [prefsSaving, setPrefsSaving] = useState(false);
   const [prefsError, setPrefsError] = useState(null);
+  const [snapshotLoading, setSnapshotLoading] = useState(false);
+  const [snapshotError, setSnapshotError] = useState(null);
+  const [snapshotData, setSnapshotData] = useState({ acceptedCount: 0, lastCoachedAt: null });
   const skipSaveRef = useRef(true);
 
   const email = serverProfile?.email?.trim() || user?.email?.trim() || "";
@@ -131,6 +126,13 @@ export default function Profile() {
   const accountCreated = serverProfile?.createdAt || user?.metadata?.creationTime || null;
   const initial = displayName.slice(0, 1).toUpperCase() || "?";
   const photoURL = user?.photoURL || "";
+  const learningSnapshotRows = useMemo(
+    () => [
+      { label: "Corrections you confirmed", value: String(snapshotData?.acceptedCount ?? 0) },
+      { label: "Last coached session", value: formatJoined(snapshotData?.lastCoachedAt) },
+    ],
+    [snapshotData],
+  );
 
   useEffect(() => {
     if (!user || !sessionReady) {
@@ -189,6 +191,41 @@ export default function Profile() {
 
     return () => window.clearTimeout(timer);
   }, [user, sessionReady, prefsLoaded, writingLevel, feedbackTone, focusArea, explainCorrections]);
+
+  useEffect(() => {
+    if (!user || !sessionReady) {
+      setSnapshotData({ acceptedCount: 0, lastCoachedAt: null });
+      setSnapshotLoading(false);
+      setSnapshotError(null);
+      return;
+    }
+    let cancelled = false;
+    setSnapshotLoading(true);
+    setSnapshotError(null);
+    void api
+      .profileSnapshot()
+      .then((body) => {
+        if (cancelled) return;
+        const acceptedCount =
+          body && Number.isFinite(Number(body.acceptedCount)) ? Number(body.acceptedCount) : 0;
+        const lastCoachedAt =
+          body && typeof body.lastCoachedAt === "string" && body.lastCoachedAt.trim()
+            ? body.lastCoachedAt
+            : null;
+        setSnapshotData({ acceptedCount, lastCoachedAt });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const code = err instanceof ApiError ? err.code : err instanceof Error ? err.message : "unknown_error";
+        setSnapshotError(code);
+      })
+      .finally(() => {
+        if (!cancelled) setSnapshotLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, sessionReady]);
 
   async function handleGoogleSignIn() {
     setGoogleError(null);
@@ -287,17 +324,24 @@ export default function Profile() {
                       Could not load server profile ({meError}). Check that app-api is running and reachable.
                     </p>
                   )}
-                  <div className="dashboard__ribbon" aria-hidden="true">
-                    <span>Learning snapshot below is sample data until wired to analytics</span>
-                  </div>
                 </aside>
 
                 <section className="profile-page__panel profile-page__panel--stats" aria-labelledby="stats-heading">
                   <h3 id="stats-heading" className="profile-page__stats-title">
                     Learning snapshot
                   </h3>
+                  {snapshotLoading && (
+                    <p className="profile-page__email-line" aria-live="polite">
+                      Refreshing learning snapshot…
+                    </p>
+                  )}
+                  {snapshotError && (
+                    <p className="profile-page__hint" role="alert">
+                      Could not refresh snapshot ({snapshotError}).
+                    </p>
+                  )}
                   <ul className="profile-page__stat-list">
-                    {STAT_ROWS.map((row) => (
+                    {learningSnapshotRows.map((row) => (
                       <li key={row.label} className="profile-page__stat-row">
                         <span className="profile-page__stat-label">{row.label}</span>
                         <span className="profile-page__stat-value">{row.value}</span>

@@ -52,6 +52,7 @@ export default function Write() {
     () => localStorage.getItem(INTRO_DISMISSED_KEY) !== "1",
   );
   const savedFeedbackKeysRef = useRef(new Set());
+  const lastSyncedCoachAtRef = useRef(null);
   const [decisionByCardId, setDecisionByCardId] = useState({});
   const [savingDecisionByCardId, setSavingDecisionByCardId] = useState({});
 
@@ -97,6 +98,15 @@ export default function Write() {
     setSavingDecisionByCardId({});
     savedFeedbackKeysRef.current.clear();
   }, [currentId]);
+
+  useEffect(() => {
+    if (!currentId || !lastCoachAt || coachPhase !== "ready") return;
+    if (lastSyncedCoachAtRef.current === lastCoachAt) return;
+    lastSyncedCoachAtRef.current = lastCoachAt;
+    void api.markCoachSession().catch(() => {
+      // Profile snapshot updates are best-effort; do not block writing flow.
+    });
+  }, [currentId, lastCoachAt, coachPhase]);
 
   const handleSuggestionDecision = useCallback(
     async (suggestion, idx, decision) => {

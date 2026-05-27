@@ -212,6 +212,19 @@ export const api = {
       body: JSON.stringify(record),
     }),
 
+  profileSnapshot: ({ headers: extraHeaders = {} } = {}) =>
+    apiFetch("/api/feedback-history/stats", {
+      headers: extraHeaders,
+      fallback: { acceptedCount: 0, lastCoachedAt: null, degraded: true, error: "offline" },
+    }),
+
+  markCoachSession: ({ headers: extraHeaders = {} } = {}) =>
+    apiFetch("/api/feedback-history/coach-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...extraHeaders },
+      body: "{}",
+    }),
+
   submitOnboarding: (payload) =>
     apiFetch("/api/onboarding", {
       method: "POST",

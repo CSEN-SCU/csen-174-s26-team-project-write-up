@@ -13,11 +13,13 @@ from firebase.init import get_db
 bp = Blueprint("feedback_history", __name__)
 
 COLLECTION = "feedback_history"
+USERS_COLLECTION = "users"
 MAX_DOC_ID_CHARS = 200
 MAX_CARD_ID_CHARS = 200
 MAX_TEXT_CHARS = 4000
 MAX_FIX_OPTIONS = 8
 VALID_DECISIONS = {"accepted", "declined"}
+LAST_COACHED_FIELD = "lastCoachedAt"
 
 
 def _trim_text(value: object, limit: int = MAX_TEXT_CHARS) -> str:
@@ -99,5 +101,40 @@ def feedback_history_list():
             items.append({"id": data.get("id") or snap.id, **data})
         items.sort(key=lambda row: str(row.get("createdAt") or ""), reverse=True)
         return jsonify(items=items), 200
+    except Exception:
+        return jsonify(ok=False, error="internal_error"), 500
+
+
+@bp.get("/feedback-history/stats")
+@require_auth
+def feedback_history_stats():
+    try:
+        accepted_query = (
+            get_db()
+            .collection(COLLECTION)
+            .where("userId", "==", g.user_id)
+            .where("decision", "==", "accepted")
+        )
+        accepted_count = 0
+        for _ in accepted_query.stream():
+            accepted_count += 1
+
+        user_snap = get_db().collection(USERS_COLLECTION).document(g.user_id).get()
+        user_data = user_snap.to_dict() or {} if user_snap.exists else {}
+        return jsonify(acceptedCount=accepted_count, lastCoachedAt=user_data.get(LAST_COACHED_FIELD)), 200
+    except Exception:
+        return jsonify(ok=False, error="internal_error"), 500
+
+
+@bp.post("/feedback-history/coach-session")
+@require_auth
+def feedback_history_mark_coach_session():
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        get_db().collection(USERS_COLLECTION).document(g.user_id).set(
+            {"userId": g.user_id, LAST_COACHED_FIELD: now, "updatedAt": now},
+            merge=True,
+        )
+        return jsonify(ok=True, lastCoachedAt=now), 200
     except Exception:
         return jsonify(ok=False, error="internal_error"), 500
