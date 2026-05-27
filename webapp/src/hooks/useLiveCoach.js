@@ -19,6 +19,7 @@ export function useLiveCoach({ enabled, currentId, title, content, onSave }) {
   const lastPausedCoachTextRef = useRef("");
   const lastTypingCoachTextRef = useRef("");
   const coachFailedForTextRef = useRef(null);
+  const lastCoachedTextRef = useRef("");
 
   const [saveState, setSaveState] = useState("idle");
   const [coachPhase, setCoachPhase] = useState("inactive");
@@ -69,6 +70,7 @@ export function useLiveCoach({ enabled, currentId, title, content, onSave }) {
       const data = await api.coach(trimmed, { coachMode: m });
       if (gen !== coachGenRef.current) return;
       coachFailedForTextRef.current = null;
+      lastCoachedTextRef.current = trimmed;
       if (m === "paused") {
         lastPausedCoachTextRef.current = trimmed;
         lastTypingCoachTextRef.current = trimmed;
@@ -117,6 +119,7 @@ export function useLiveCoach({ enabled, currentId, title, content, onSave }) {
       setLastCoachAt(null);
       lastPausedCoachTextRef.current = "";
       lastTypingCoachTextRef.current = "";
+      lastCoachedTextRef.current = "";
       const body = String(initialBody ?? contentRef.current ?? "").trim();
       setCoachPhase(
         !enabled || !currentIdRef.current
@@ -150,6 +153,19 @@ export function useLiveCoach({ enabled, currentId, title, content, onSave }) {
       return;
     }
     const trimmed = content.trim();
+
+    // When the user deletes a large chunk of text, clear stale suggestions immediately
+    // rather than waiting for the next coach pass.
+    if (
+      lastCoachedTextRef.current.length > 0 &&
+      trimmed.length < lastCoachedTextRef.current.length * 0.55
+    ) {
+      setSuggestions([]);
+      lastCoachedTextRef.current = "";
+      lastPausedCoachTextRef.current = "";
+      lastTypingCoachTextRef.current = "";
+    }
+
     if (trimmed.length < MIN_COACH_CHARS) {
       setCoachPhase((p) => (p === "fetching" ? p : "needs_more_text"));
       return;
