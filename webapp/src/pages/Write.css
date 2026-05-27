@@ -34,13 +34,19 @@
 .write-shell {
   display: grid;
   grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(280px, 360px);
-  min-height: calc(100vh - 52px);
+  /* Exact viewport height so each column is bounded and can scroll independently */
+  height: calc(100vh - 52px);
+  overflow: hidden;
 }
 
 @media (max-width: 1024px) {
   .write-shell {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto 1fr;
+    /* Restore natural stacking height on mobile */
+    height: auto;
+    min-height: calc(100vh - 52px);
+    overflow: visible;
   }
 }
 
@@ -66,6 +72,9 @@
 .write-coach-panel {
   border-right: none;
   border-left: 1px solid var(--write-border);
+  /* Allow the panel to scroll its own content independently */
+  overflow: hidden;
+  min-height: 0;
 }
 
 @media (max-width: 1024px) {
@@ -355,7 +364,7 @@
 .write-suggestions-wrap {
   position: relative;
   flex: 1;
-  min-height: 120px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
