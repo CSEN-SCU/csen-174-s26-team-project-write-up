@@ -93,7 +93,18 @@ export default function Write() {
   });
 
   useEffect(() => {
-    setDecisionByCardId({});
+    // Load persisted decisions from localStorage when switching documents,
+    // so declined suggestions stay hidden across page refreshes and doc switches.
+    if (!currentId) {
+      setDecisionByCardId({});
+    } else {
+      try {
+        const stored = JSON.parse(localStorage.getItem(`writeup-decisions-${currentId}`) || "{}");
+        setDecisionByCardId(stored);
+      } catch {
+        setDecisionByCardId({});
+      }
+    }
     setSavingDecisionByCardId({});
   }, [currentId]);
 
@@ -111,13 +122,37 @@ export default function Write() {
       if (!currentId) return;
       const record = suggestionToFeedbackRecord(currentId, suggestion, idx);
       if (savingDecisionByCardId[record.cardId]) return;
-      if (decisionByCardId[record.cardId] === decision) {
-        return;
+      if (decisionByCardId[record.cardId] === decision) return;
+
+      // Auto-apply the suggested fix to the document text when accepting a
+      // spelling / typo / contraction card that has a micro_edit.
+      if (decision === "accepted" && suggestion.micro_edit) {
+        const titleStr = suggestion.title || "";
+        const isAutoFixable = /^(?:Spelling|Typo|Missing apostrophe|Phrase|Grammar):/i.test(titleStr);
+        if (isAutoFixable) {
+          // Extract the original word/phrase from the quoted portion of the title
+          const quotedMatch = titleStr.match(/[\u201C"]([^\u201D"]+)[\u201D"]/);
+          if (quotedMatch?.[1]) {
+            const original = quotedMatch[1];
+            const escaped = original.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            setContent((prev) => prev.replace(new RegExp(escaped, "i"), suggestion.micro_edit));
+          }
+        }
       }
+
       setSavingDecisionByCardId((prev) => ({ ...prev, [record.cardId]: true }));
       try {
         await api.saveFeedback({ docId: currentId, ...record, decision });
-        setDecisionByCardId((prev) => ({ ...prev, [record.cardId]: decision }));
+        setDecisionByCardId((prev) => {
+          const next = { ...prev, [record.cardId]: decision };
+          // Persist decisions so they survive page refreshes and doc switches.
+          try {
+            localStorage.setItem(`writeup-decisions-${currentId}`, JSON.stringify(next));
+          } catch {
+            // localStorage may be unavailable in some environments; non-fatal.
+          }
+          return next;
+        });
       } finally {
         setSavingDecisionByCardId((prev) => ({ ...prev, [record.cardId]: false }));
       }
@@ -337,47 +372,57 @@ export default function Write() {
               className={`write-suggestions-wrap${coachPhase === "needs_more_text" || coachPhase === "waiting_pause" || coachPhase === "fetching" ? " stale" : ""}`}
             >
               <div className="write-suggestions">
-                {suggestions.map((s, i) => (
-                  <article key={`${s.title}-${i}`} className="write-card">
-                    {s.type ? <span className="write-type-tag">{s.type}</span> : null}
-                    <h3>{s.title}</h3>
-                    <p>{s.body}</p>
-                    {s.micro_edit ? (
-                      <div className="write-micro">
-                        <strong>Optional phrasing:</strong> {s.micro_edit}
-                      </div>
-                    ) : null}
-                    {currentId ? (
-                      <div className="write-card-actions">
-                        {(() => {
-                          const record = suggestionToFeedbackRecord(currentId, s, i);
-                          const decision = decisionByCardId[record.cardId] || null;
-                          const saving = Boolean(savingDecisionByCardId[record.cardId]);
-                          return (
-                            <>
-                              <button
-                                type="button"
-                                className={`write-card-btn${decision === "accepted" ? " is-selected" : ""}`}
-                                onClick={() => void handleSuggestionDecision(s, i, "accepted")}
-                                disabled={saving}
-                              >
-                                {saving && decision !== "declined" ? "Saving..." : "Accept"}
-                              </button>
-                              <button
-                                type="button"
-                                className={`write-card-btn write-card-btn--ghost${decision === "declined" ? " is-selected" : ""}`}
-                                onClick={() => void handleSuggestionDecision(s, i, "declined")}
-                                disabled={saving}
-                              >
-                                {saving && decision !== "accepted" ? "Saving..." : "Decline"}
-                              </button>
-                            </>
-                          );
-                        })()}
-                      </div>
-                    ) : null}
-                  </article>
-                ))}
+                {suggestions.map((s, i) => {
+                  const record = suggestionToFeedbackRecord(currentId, s, i);
+                  const decision = decisionByCardId[record.cardId] || null;
+
+                  // Hide suggestions the user has already declined.
+                  if (decision === "declined") return null;
+
+                  // Immediately hide spelling/typo cards whose referenced word is
+                  // no longer present in the draft (e.g. the user deleted it).
+                  if (/^(?:Spelling|Typo|Missing apostrophe):/i.test(s.title || "")) {
+                    const qm = (s.title || "").match(/[\u201C"]([^\u201D"]+)[\u201D"]/);
+                    if (qm?.[1]) {
+                      const escaped = qm[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                      if (!new RegExp(`\\b${escaped}\\b`, "i").test(content)) return null;
+                    }
+                  }
+
+                  const saving = Boolean(savingDecisionByCardId[record.cardId]);
+                  return (
+                    <article key={`${s.title}-${i}`} className="write-card">
+                      {s.type ? <span className="write-type-tag">{s.type}</span> : null}
+                      <h3>{s.title}</h3>
+                      <p>{s.body}</p>
+                      {s.micro_edit ? (
+                        <div className="write-micro">
+                          <strong>Suggested fix:</strong> {s.micro_edit}
+                        </div>
+                      ) : null}
+                      {currentId ? (
+                        <div className="write-card-actions">
+                          <button
+                            type="button"
+                            className={`write-card-btn${decision === "accepted" ? " is-selected" : ""}`}
+                            onClick={() => void handleSuggestionDecision(s, i, "accepted")}
+                            disabled={saving}
+                          >
+                            {saving && decision !== "declined" ? "Saving..." : "Accept"}
+                          </button>
+                          <button
+                            type="button"
+                            className={`write-card-btn write-card-btn--ghost${decision === "declined" ? " is-selected" : ""}`}
+                            onClick={() => void handleSuggestionDecision(s, i, "declined")}
+                            disabled={saving}
+                          >
+                            {saving && decision !== "accepted" ? "Saving..." : "Decline"}
+                          </button>
+                        </div>
+                      ) : null}
+                    </article>
+                  );
+                })}
               </div>
               {coachPhase === "ready" && suggestions.length === 0 ? (
                 <p className="write-suggestions-empty">
