@@ -164,7 +164,7 @@ main { padding: 16px; }
 
 .dashboard__headline {
   margin: 0 0 var(--space-4);
-  max-width: 22ch;
+  max-width: 100%;
   font-family: var(--font-display);
   font-size: clamp(1.75rem, 4.2vw, 2.35rem);
   font-weight: 700;
@@ -181,7 +181,7 @@ main { padding: 16px; }
 
 .dashboard__lede {
   margin: 0 0 var(--space-6);
-  max-width: 46ch;
+  max-width: 100%;
   font-size: 1.055rem;
   line-height: 1.62;
   color: var(--dash-ink-soft);
@@ -189,6 +189,7 @@ main { padding: 16px; }
 
 .dashboard__hero-actions {
   display: flex;
+  justify-items: center;
   flex-wrap: wrap;
   gap: var(--space-3);
 }

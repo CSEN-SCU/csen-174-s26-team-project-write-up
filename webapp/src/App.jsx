@@ -8,7 +8,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Write from "./pages/Write";
 
 function TopbarAuth() {
-  const { user, loading, signInWithGoogle, signOut } = useAuth();
+  const { user, loading, serverProfile, signInWithGoogle, signOut } = useAuth();
 
   if (loading) {
     return <span className="topbar-auth">Auth…</span>;
@@ -20,11 +20,26 @@ function TopbarAuth() {
       </button>
     );
   }
+
+  const email = serverProfile?.email?.trim() || user.email?.trim() || "";
+  const label =
+    serverProfile?.displayName?.trim() ||
+    user.displayName?.trim() ||
+    (email ? email.split("@")[0].replace(/\./g, " ") : "") ||
+    user.uid.slice(0, 8) + "…";
+
   return (
+    
     <span className="topbar-auth-cluster">
+      <span className="topbar-auth-email" title={user.email ?? user.uid}>
+        {label}
+      </span>
+
+      {/*
       <span className="topbar-auth-email" title={user.uid}>
         {user.email || user.uid.slice(0, 8) + "…"}
       </span>
+``````*/}
       <button type="button" className="topbar-auth-btn topbar-auth-btn--primary" onClick={() => signOut()}>
         Sign out
       </button>
@@ -60,7 +75,6 @@ export default function App() {
             <Route path="/write" element={<Write />} />
             <Route path="/history" element={<History />} />
             <Route path="/profile" element={<Profile />} />
-            <Route path="/extension-auth" element={<ExtensionAuth />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
           </Routes>
         </main>

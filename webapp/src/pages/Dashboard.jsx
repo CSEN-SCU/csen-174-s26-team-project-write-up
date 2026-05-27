@@ -7,14 +7,14 @@ const pillars = [
       "See recurring issues across drafts—syntax, tone, vocabulary—not just the last typo an algorithm noticed.",
   },
   {
-    title: "Teach beside you—not over you",
+    title: "Teach beside you",
     body:
       "Write Up separates “help me learn” from “fix it for me”: plain explanations and small practice loops so understanding sticks.",
   },
   {
     title: "Your voice stays yours",
     body:
-      "Feedback shouldn’t flatten dialect or polish away how you sound. Improvement means clearer choices, not a homogenized template.",
+      "Feedback shouldn’t flatten dialect or polish away how you sound - improvement means clearer choices.",
   },
 ];
 
@@ -23,7 +23,7 @@ export default function Dashboard() {
     <section className="page dashboard dashboard--home" aria-labelledby="dash-home-title">
       <div className="dashboard__inner dashboard__inner--wide">
         <header className="dashboard__hero">
-          <p className="dashboard__eyebrow">Browser extension · learning-first writing coach</p>
+          <p className="dashboard__eyebrow">Learning-first writing coach</p>
           <h2 id="dash-home-title" className="dashboard__headline">
             Write better with guidance that learns <em className="dashboard__emph">with</em> you—not for you.
           </h2>
@@ -36,7 +36,7 @@ export default function Dashboard() {
               Open web editor
             </Link>
             <Link className="dashboard__btn dashboard__btn--ghost" to="/history">
-              View History demo
+              View History
             </Link>
           </div>
         </header>

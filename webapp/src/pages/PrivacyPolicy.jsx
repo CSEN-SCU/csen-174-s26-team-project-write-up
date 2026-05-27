@@ -38,12 +38,12 @@ export default function PrivacyPolicy() {
         </header>
 
         <div className="dashboard__ribbon" aria-hidden="true">
-          <span>Google sign-in | AI writing support | saved feedback history</span>
+          <span>Google Sign-In | AI Writing Support | Saved Feedback History</span>
         </div>
 
         <section className="privacy-page__intro" aria-labelledby="privacy-summary-title">
           <h3 id="privacy-summary-title" className="privacy-page__section-title">
-            What Write Up is designed to do
+            What Write Up is Designed To Do
           </h3>
           <p>
             Users sign in with Google, write in supported websites or documents, and receive
