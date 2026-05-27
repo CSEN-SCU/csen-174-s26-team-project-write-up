@@ -73,7 +73,6 @@ export default function History() {
   const tabPanelLabelledBy =
     activeTab === TAB_CORRECTIONS ? "history-tab-corrections" : "history-tab-leave";
 
-  const degraded = Boolean(data?.degraded);
   const emptyCorrections = activeTab === TAB_CORRECTIONS && correctionRows.length === 0 && !loading;
 
   return (
@@ -83,10 +82,6 @@ export default function History() {
           <div className="history-page__heading">
             <p className="dashboard__eyebrow">Feedback timeline</p>
             <h2 className="history-page__title">History</h2>
-            <p className="history-page__docid" style={{ marginTop: "0.35rem", opacity: 0.85 }}>
-              Document: <code>{docId}</code> · add <code>?docId=</code> to match a Google Doc id or
-              use <code>active</code> for side-panel sessions.
-            </p>
           </div>
           {activeTab === TAB_LEAVE_AS_WRITTEN ? (
             <button
@@ -99,7 +94,7 @@ export default function History() {
           ) : (
             <button
               type="button"
-              className="history-page__add-btn dashboard__btn dashboard__btn--ghost"
+              className="history-page__add-btn dashboard__btn dashboard__btn--primary"
               onClick={() => retry()}
               disabled={loading}
             >
@@ -147,10 +142,6 @@ export default function History() {
             <code>VITE_DEBUG_APP_USER</code> for local app-api bypass, or sign in with Firebase.
           </p>
         )}
-        {degraded && (
-          <p className="history-page__note">Showing empty history (offline or server unavailable).</p>
-        )}
-
         <p className="history-page__hint">
           <strong>Correction history</strong> lists suggestions saved from the extension after each
           coach run. <strong>Leave as written</strong> is still a local demo until dismissals are
@@ -166,9 +157,7 @@ export default function History() {
                 <p className="history-page__empty">
                   {activeTab === TAB_CORRECTIONS ? (
                     <>
-                      {emptyCorrections
-                        ? "No saved suggestions for this document yet. Run “Get feedback” in the extension; entries appear here automatically."
-                        : null}
+                      {emptyCorrections ? "No saved suggestions for this document yet." : null}
                     </>
                   ) : (
                     <>

@@ -15,7 +15,7 @@ function TopbarAuth() {
   }
   if (!user) {
     return (
-      <button type="button" className="topbar-auth-btn" onClick={() => signInWithGoogle()}>
+      <button type="button" className="topbar-auth-btn topbar-auth-btn--primary" onClick={() => signInWithGoogle()}>
         Sign in
       </button>
     );
@@ -25,10 +25,24 @@ function TopbarAuth() {
       <span className="topbar-auth-email" title={user.uid}>
         {user.email || user.uid.slice(0, 8) + "…"}
       </span>
-      <button type="button" className="topbar-auth-btn topbar-auth-btn--ghost" onClick={() => signOut()}>
+      <button type="button" className="topbar-auth-btn topbar-auth-btn--primary" onClick={() => signOut()}>
         Sign out
       </button>
     </span>
+  );
+}
+
+function TopNav() {
+  const { user } = useAuth();
+  return (
+    <nav>
+      <Link to="/">Home</Link>
+      <Link to="/write">Write</Link>
+      <Link to="/history">History</Link>
+      {user ? <Link to="/profile">Profile</Link> : null}
+      <Link to="/privacy">Privacy</Link>
+      <TopbarAuth />
+    </nav>
   );
 }
 
@@ -38,15 +52,7 @@ export default function App() {
       <BrowserRouter>
         <header className="topbar">
           <h1>Write Up</h1>
-          <nav>
-            <Link to="/">Dashboard</Link>
-            <Link to="/write">Write</Link>
-            <Link to="/history">History</Link>
-            <Link to="/profile">Profile</Link>
-            <Link to="/extension-auth">Extension</Link>
-            <Link to="/privacy">Privacy</Link>
-            <TopbarAuth />
-          </nav>
+          <TopNav />
         </header>
         <main>
           <Routes>
