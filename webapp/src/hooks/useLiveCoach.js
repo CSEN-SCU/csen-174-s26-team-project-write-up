@@ -20,6 +20,10 @@ export function useLiveCoach({ enabled, currentId, title, content, onSave }) {
   const lastTypingCoachTextRef = useRef("");
   const coachFailedForTextRef = useRef(null);
   const lastCoachedTextRef = useRef("");
+  // Baseline of what's already persisted on the server, so that simply
+  // loading/switching documents does not trigger a no-op save that would
+  // bump updatedAt and re-sort the document list.
+  const lastSavedRef = useRef({ id: null, title: "", content: "" });
 
   const [saveState, setSaveState] = useState("idle");
   const [coachPhase, setCoachPhase] = useState("inactive");
@@ -132,14 +136,33 @@ export function useLiveCoach({ enabled, currentId, title, content, onSave }) {
     [enabled],
   );
 
+  const markSaved = useCallback((id, t, c) => {
+    lastSavedRef.current = {
+      id: id ?? null,
+      title: String(t ?? ""),
+      content: String(c ?? ""),
+    };
+  }, []);
+
   useDebouncedEffect([enabled, currentId, title, content], SAVE_MS, async () => {
     const id = currentId;
     const t = title;
     const c = content;
     if (!enabled || !id) return;
+    const last = lastSavedRef.current;
+    if (last.id === id && last.title === t && last.content === c) {
+      return;
+    }
     setSaveState("saving");
     try {
       await api.documents.update(id, { title: t, content: c });
+      // Guard against a race where the user switched documents while the
+      // PUT was in flight: only update the baseline if we still hold the
+      // same document, otherwise we'd clobber the baseline that openDocument
+      // just set for the newly opened doc.
+      if (currentIdRef.current === id) {
+        lastSavedRef.current = { id, title: t, content: c };
+      }
       setSaveState("saved");
       await onSave?.();
     } catch {
@@ -206,6 +229,7 @@ export function useLiveCoach({ enabled, currentId, title, content, onSave }) {
     lastCoachAt,
     coachError,
     resetCoachState,
+    markSaved,
     bumpCoachGeneration: () => {
       coachGenRef.current += 1;
     },

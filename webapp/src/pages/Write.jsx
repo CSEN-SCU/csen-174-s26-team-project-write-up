@@ -83,6 +83,7 @@ export default function Write() {
     lastCoachAt,
     coachError,
     resetCoachState,
+    markSaved,
     bumpCoachGeneration,
   } = useLiveCoach({
     enabled: canWrite,
@@ -172,15 +173,17 @@ export default function Write() {
       try {
         const doc = await api.documents.get(id);
         const body = String(doc.content || "");
+        const docTitle = doc.title || "Untitled";
         setCurrentId(doc.id);
-        setTitle(doc.title || "Untitled");
+        setTitle(docTitle);
         setContent(body);
+        markSaved(doc.id, docTitle, body);
         resetCoachState(body);
       } catch {
         setTopError("Could not open that document.");
       }
     },
-    [bumpCoachGeneration, resetCoachState],
+    [bumpCoachGeneration, markSaved, resetCoachState],
   );
 
   const createDocument = useCallback(async () => {
@@ -261,7 +264,6 @@ export default function Write() {
             <button type="button" className="write-btn write-btn--primary" onClick={() => void createDocument()}>
               New document
             </button>
-            {listLoading ? <p className="write-muted">Loading…</p> : null}
             <ul className="write-doc-list" aria-label="Documents">
               {documents.map((d) => (
                 <li key={d.id}>
@@ -278,6 +280,11 @@ export default function Write() {
                 </li>
               ))}
             </ul>
+            {listLoading ? (
+              <p className="write-muted write-loading-indicator" role="status" aria-live="polite">
+                Loading…
+              </p>
+            ) : null}
           </aside>
 
           <main className="write-editor-wrap">
