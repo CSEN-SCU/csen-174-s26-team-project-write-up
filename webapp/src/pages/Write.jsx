@@ -51,7 +51,6 @@ export default function Write() {
   const [showIntro, setShowIntro] = useState(
     () => localStorage.getItem(INTRO_DISMISSED_KEY) !== "1",
   );
-  const savedFeedbackKeysRef = useRef(new Set());
   const lastSyncedCoachAtRef = useRef(null);
   const [decisionByCardId, setDecisionByCardId] = useState({});
   const [savingDecisionByCardId, setSavingDecisionByCardId] = useState({});
@@ -96,7 +95,6 @@ export default function Write() {
   useEffect(() => {
     setDecisionByCardId({});
     setSavingDecisionByCardId({});
-    savedFeedbackKeysRef.current.clear();
   }, [currentId]);
 
   useEffect(() => {
@@ -112,23 +110,19 @@ export default function Write() {
     async (suggestion, idx, decision) => {
       if (!currentId) return;
       const record = suggestionToFeedbackRecord(currentId, suggestion, idx);
-      const dedupeKey = `${currentId}::${record.cardId}::${decision}`;
-      if (savedFeedbackKeysRef.current.has(dedupeKey)) {
-        setDecisionByCardId((prev) => ({ ...prev, [record.cardId]: decision }));
+      if (savingDecisionByCardId[record.cardId]) return;
+      if (decisionByCardId[record.cardId] === decision) {
         return;
       }
-      savedFeedbackKeysRef.current.add(dedupeKey);
       setSavingDecisionByCardId((prev) => ({ ...prev, [record.cardId]: true }));
       try {
         await api.saveFeedback({ docId: currentId, ...record, decision });
         setDecisionByCardId((prev) => ({ ...prev, [record.cardId]: decision }));
-      } catch {
-        savedFeedbackKeysRef.current.delete(dedupeKey);
       } finally {
         setSavingDecisionByCardId((prev) => ({ ...prev, [record.cardId]: false }));
       }
     },
-    [currentId],
+    [currentId, decisionByCardId, savingDecisionByCardId],
   );
 
   const dismissIntro = useCallback(() => {

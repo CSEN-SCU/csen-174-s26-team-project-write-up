@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timezone
 
 from flask import Blueprint, g, jsonify, request
@@ -24,6 +23,16 @@ LAST_COACHED_FIELD = "lastCoachedAt"
 
 def _trim_text(value: object, limit: int = MAX_TEXT_CHARS) -> str:
     return str(value or "").strip()[:limit]
+
+
+def _latest_rows(items: list[dict]) -> list[dict]:
+    by_card: dict[str, dict] = {}
+    for row in items:
+        key = f"{row.get('docId', '')}::{row.get('cardId', '')}"
+        prev = by_card.get(key)
+        if not prev or str(row.get("updatedAt") or "") >= str(prev.get("updatedAt") or ""):
+            by_card[key] = row
+    return list(by_card.values())
 
 
 @bp.post("/feedback-history")
@@ -51,14 +60,23 @@ def feedback_history_add():
         return jsonify(ok=False, error="invalid_fix_options"), 400
 
     now = datetime.now(timezone.utc).isoformat()
-    record_id = f"{g.user_id}_{doc_id}_{card_id}_{uuid.uuid4().hex[:10]}"
+    # Canonical record per (user, doc, card): latest decision overwrites previous.
+    record_id = f"{g.user_id}_{doc_id}_{card_id}"
+    created_at = now
+    try:
+        existing = get_db().collection(COLLECTION).document(record_id).get()
+        if existing.exists:
+            existing_data = existing.to_dict() or {}
+            created_at = str(existing_data.get("createdAt") or now)
+    except Exception:
+        created_at = now
     record: dict = {
         "id": record_id,
         "userId": g.user_id,
         "docId": doc_id,
         "cardId": card_id,
         "decision": decision,
-        "createdAt": now,
+        "createdAt": created_at,
         "updatedAt": now,
     }
 
@@ -75,8 +93,8 @@ def feedback_history_add():
         ][:MAX_FIX_OPTIONS]
 
     try:
-        get_db().collection(COLLECTION).document(record_id).set(record)
-        return jsonify(ok=True, id=record_id), 201
+        get_db().collection(COLLECTION).document(record_id).set(record, merge=True)
+        return jsonify(ok=True, id=record_id), 200
     except Exception:
         return jsonify(ok=False, error="internal_error"), 500
 
@@ -95,11 +113,12 @@ def feedback_history_list():
         if decision:
             query = query.where("decision", "==", decision)
 
-        items = []
+        items: list[dict] = []
         for snap in query.stream():
             data = snap.to_dict() or {}
             items.append({"id": data.get("id") or snap.id, **data})
-        items.sort(key=lambda row: str(row.get("createdAt") or ""), reverse=True)
+        items = _latest_rows(items)
+        items.sort(key=lambda row: str(row.get("updatedAt") or row.get("createdAt") or ""), reverse=True)
         return jsonify(items=items), 200
     except Exception:
         return jsonify(ok=False, error="internal_error"), 500
@@ -109,15 +128,13 @@ def feedback_history_list():
 @require_auth
 def feedback_history_stats():
     try:
-        accepted_query = (
-            get_db()
-            .collection(COLLECTION)
-            .where("userId", "==", g.user_id)
-            .where("decision", "==", "accepted")
-        )
-        accepted_count = 0
-        for _ in accepted_query.stream():
-            accepted_count += 1
+        all_rows_query = get_db().collection(COLLECTION).where("userId", "==", g.user_id)
+        all_rows: list[dict] = []
+        for snap in all_rows_query.stream():
+            data = snap.to_dict() or {}
+            all_rows.append({"id": data.get("id") or snap.id, **data})
+        latest_rows = _latest_rows(all_rows)
+        accepted_count = sum(1 for row in latest_rows if row.get("decision") == "accepted")
 
         user_snap = get_db().collection(USERS_COLLECTION).document(g.user_id).get()
         user_data = user_snap.to_dict() or {} if user_snap.exists else {}
