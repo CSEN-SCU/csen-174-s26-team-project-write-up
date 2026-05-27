@@ -17,6 +17,7 @@ MAX_DOC_ID_CHARS = 200
 MAX_CARD_ID_CHARS = 200
 MAX_TEXT_CHARS = 4000
 MAX_FIX_OPTIONS = 8
+VALID_DECISIONS = {"accepted", "declined"}
 
 
 def _trim_text(value: object, limit: int = MAX_TEXT_CHARS) -> str:
@@ -39,6 +40,9 @@ def feedback_history_add():
         return jsonify(ok=False, error="missing_card_id"), 400
     if not issue and not why:
         return jsonify(ok=False, error="missing_feedback_fields"), 400
+    decision = _trim_text(body.get("decision"), 24).lower()
+    if decision not in VALID_DECISIONS:
+        return jsonify(ok=False, error="invalid_decision"), 400
 
     fix_options_raw = body.get("fixOptions")
     if fix_options_raw is not None and not isinstance(fix_options_raw, list):
@@ -51,6 +55,7 @@ def feedback_history_add():
         "userId": g.user_id,
         "docId": doc_id,
         "cardId": card_id,
+        "decision": decision,
         "createdAt": now,
         "updatedAt": now,
     }
@@ -78,10 +83,15 @@ def feedback_history_add():
 @require_auth
 def feedback_history_list():
     doc_id = _trim_text(request.args.get("docId"), MAX_DOC_ID_CHARS)
+    decision = _trim_text(request.args.get("decision"), 24).lower()
+    if decision and decision not in VALID_DECISIONS:
+        return jsonify(ok=False, error="invalid_decision"), 400
     try:
         query = get_db().collection(COLLECTION).where("userId", "==", g.user_id)
         if doc_id:
             query = query.where("docId", "==", doc_id)
+        if decision:
+            query = query.where("decision", "==", decision)
 
         items = []
         for snap in query.stream():

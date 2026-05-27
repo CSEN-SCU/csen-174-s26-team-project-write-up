@@ -370,6 +370,43 @@
   font-size: 0.9rem;
 }
 
+.write-card-actions {
+  margin-top: 0.6rem;
+  display: flex;
+  gap: 0.45rem;
+}
+
+.write-card-btn {
+  border: 1px solid var(--write-border);
+  background: #fff;
+  color: var(--write-ink);
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.write-card-btn:hover {
+  border-color: var(--write-accent);
+}
+
+.write-card-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.write-card-btn.is-selected {
+  background: var(--write-accent-soft);
+  border-color: var(--write-accent);
+  color: var(--write-accent);
+}
+
+.write-card-btn--ghost.is-selected {
+  background: rgba(138, 99, 146, 0.08);
+  border-color: var(--write-danger);
+  color: var(--write-danger);
+}
+
 .write-details {
   margin-top: 0.75rem;
   border-top: 1px solid var(--write-border);

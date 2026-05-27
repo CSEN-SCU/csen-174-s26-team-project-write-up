@@ -22,6 +22,21 @@ function hashSuggestion(parts) {
   return Math.abs(hash >>> 0).toString(36);
 }
 
+function suggestionToFeedbackRecord(docId, suggestion, idx) {
+  const category = String(suggestion?.type || "").trim().toLowerCase() || "coaching";
+  const issue = String(suggestion?.title || "").trim() || "Suggestion";
+  const why = String(suggestion?.body || "").trim();
+  const micro = String(suggestion?.micro_edit || "").trim();
+  const cardId = `web-${hashSuggestion([docId, category, issue, why, micro, String(idx)])}`;
+  return {
+    cardId,
+    category,
+    issue,
+    why,
+    fixOptions: micro ? [micro] : [],
+  };
+}
+
 export default function Write() {
   const { user, loading: authLoading, sessionReady, signInWithGoogle } = useAuth();
   const canWrite = Boolean(user);
@@ -37,6 +52,8 @@ export default function Write() {
     () => localStorage.getItem(INTRO_DISMISSED_KEY) !== "1",
   );
   const savedFeedbackKeysRef = useRef(new Set());
+  const [decisionByCardId, setDecisionByCardId] = useState({});
+  const [savingDecisionByCardId, setSavingDecisionByCardId] = useState({});
 
   const loadList = useCallback(async () => {
     if (!canFetchDocs) return;
@@ -76,33 +93,33 @@ export default function Write() {
   });
 
   useEffect(() => {
-    if (!currentId || coachPhase !== "ready" || suggestions.length === 0) return;
+    setDecisionByCardId({});
+    setSavingDecisionByCardId({});
+    savedFeedbackKeysRef.current.clear();
+  }, [currentId]);
 
-    for (let i = 0; i < suggestions.length; i += 1) {
-      const suggestion = suggestions[i] || {};
-      const category = String(suggestion.type || "").trim().toLowerCase() || "coaching";
-      const issue = String(suggestion.title || "").trim() || "Suggestion";
-      const why = String(suggestion.body || "").trim();
-      const micro = String(suggestion.micro_edit || "").trim();
-      const dedupeKey = `${currentId}::${category}::${issue}::${why}::${micro}`;
-      if (savedFeedbackKeysRef.current.has(dedupeKey)) continue;
+  const handleSuggestionDecision = useCallback(
+    async (suggestion, idx, decision) => {
+      if (!currentId) return;
+      const record = suggestionToFeedbackRecord(currentId, suggestion, idx);
+      const dedupeKey = `${currentId}::${record.cardId}::${decision}`;
+      if (savedFeedbackKeysRef.current.has(dedupeKey)) {
+        setDecisionByCardId((prev) => ({ ...prev, [record.cardId]: decision }));
+        return;
+      }
       savedFeedbackKeysRef.current.add(dedupeKey);
-
-      const cardId = `web-${hashSuggestion([currentId, category, issue, why, micro, String(i)])}`;
-      const payload = {
-        docId: currentId,
-        cardId,
-        category,
-        issue,
-        why,
-        fixOptions: micro ? [micro] : [],
-      };
-
-      void api.saveFeedback(payload).catch(() => {
-        // Keep write flow responsive; history save can fail independently.
-      });
-    }
-  }, [currentId, coachPhase, suggestions]);
+      setSavingDecisionByCardId((prev) => ({ ...prev, [record.cardId]: true }));
+      try {
+        await api.saveFeedback({ docId: currentId, ...record, decision });
+        setDecisionByCardId((prev) => ({ ...prev, [record.cardId]: decision }));
+      } catch {
+        savedFeedbackKeysRef.current.delete(dedupeKey);
+      } finally {
+        setSavingDecisionByCardId((prev) => ({ ...prev, [record.cardId]: false }));
+      }
+    },
+    [currentId],
+  );
 
   const dismissIntro = useCallback(() => {
     localStorage.setItem(INTRO_DISMISSED_KEY, "1");
@@ -324,6 +341,35 @@ export default function Write() {
                     {s.micro_edit ? (
                       <div className="write-micro">
                         <strong>Optional phrasing:</strong> {s.micro_edit}
+                      </div>
+                    ) : null}
+                    {currentId ? (
+                      <div className="write-card-actions">
+                        {(() => {
+                          const record = suggestionToFeedbackRecord(currentId, s, i);
+                          const decision = decisionByCardId[record.cardId] || null;
+                          const saving = Boolean(savingDecisionByCardId[record.cardId]);
+                          return (
+                            <>
+                              <button
+                                type="button"
+                                className={`write-card-btn${decision === "accepted" ? " is-selected" : ""}`}
+                                onClick={() => void handleSuggestionDecision(s, i, "accepted")}
+                                disabled={saving}
+                              >
+                                {saving && decision !== "declined" ? "Saving..." : "Accept"}
+                              </button>
+                              <button
+                                type="button"
+                                className={`write-card-btn write-card-btn--ghost${decision === "declined" ? " is-selected" : ""}`}
+                                onClick={() => void handleSuggestionDecision(s, i, "declined")}
+                                disabled={saving}
+                              >
+                                {saving && decision !== "accepted" ? "Saving..." : "Decline"}
+                              </button>
+                            </>
+                          );
+                        })()}
                       </div>
                     ) : null}
                   </article>

@@ -154,16 +154,16 @@ export const api = {
       }),
   },
 
-  history: (docId, { headers: extraHeaders = {} } = {}) =>
-    apiFetch(
-      docId
-        ? `/api/feedback-history?docId=${encodeURIComponent(docId)}`
-        : "/api/feedback-history",
-      {
+  history: (docId, { decision, headers: extraHeaders = {} } = {}) => {
+    const params = new URLSearchParams();
+    if (docId) params.set("docId", docId);
+    if (decision) params.set("decision", decision);
+    const query = params.toString();
+    return apiFetch(query ? `/api/feedback-history?${query}` : "/api/feedback-history", {
       headers: extraHeaders,
       fallback: { items: [], degraded: true, error: "offline" },
-      },
-    ),
+    });
+  },
 
   /**
    * Proxied by app-api → coaching-api (Chris / swe-test-style live coach).

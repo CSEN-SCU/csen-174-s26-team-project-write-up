@@ -6,25 +6,6 @@ import { useApi } from "../lib/useApi";
 const TAB_CORRECTIONS = "corrections";
 const TAB_LEAVE_AS_WRITTEN = "leaveAsWritten";
 
-const DEMO_LEAVE_AS_WRITTEN_PAIRS = [
-  {
-    correction: 'Treat "data" as plural: "The data are conclusive."',
-    mistake: "The data is conclusive.",
-  },
-  {
-    correction: "Add a comma before the coordinating conjunction.",
-    mistake: "She finished the report and went home.",
-  },
-  {
-    correction: "Use an en dash for the numeric range.",
-    mistake: "Read pages 12-14 for context.",
-  },
-  {
-    correction: "Prefer active voice here.",
-    mistake: "The experiment was run by the lab team.",
-  },
-];
-
 function mapFirestoreRow(raw, idx) {
   const cardId = raw.cardId ?? "card";
   const createdAt = raw.createdAt ?? "";
@@ -40,10 +21,12 @@ export default function History() {
   const [searchParams] = useSearchParams();
   const rawDocId = searchParams.get("docId");
   const docId = rawDocId && rawDocId.trim() ? rawDocId.trim() : null;
+  const [activeTab, setActiveTab] = useState(TAB_CORRECTIONS);
+  const decisionFilter = activeTab === TAB_CORRECTIONS ? "accepted" : "declined";
 
   const { data, loading, error, retry } = useApi(
-    useCallback(() => api.history(docId), [docId]),
-    [docId],
+    useCallback(() => api.history(docId, { decision: decisionFilter }), [docId, decisionFilter]),
+    [docId, decisionFilter],
   );
 
   const correctionRows = useMemo(() => {
@@ -51,24 +34,7 @@ export default function History() {
     return items.map(mapFirestoreRow);
   }, [data]);
 
-  const [leaveAsWrittenItems, setLeaveAsWrittenItems] = useState([]);
-  const [activeTab, setActiveTab] = useState(TAB_CORRECTIONS);
-
-  function addDemoLeaveAsWritten() {
-    setLeaveAsWrittenItems((prev) => {
-      const pair = DEMO_LEAVE_AS_WRITTEN_PAIRS[prev.length % DEMO_LEAVE_AS_WRITTEN_PAIRS.length];
-      return [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          correction: pair.correction,
-          mistake: pair.mistake,
-        },
-      ];
-    });
-  }
-
-  const listForTab = activeTab === TAB_CORRECTIONS ? correctionRows : leaveAsWrittenItems;
+  const listForTab = correctionRows;
   const listAriaLabel =
     activeTab === TAB_CORRECTIONS ? "Correction history entries" : "Leave as written entries";
   const tabPanelLabelledBy =
@@ -84,24 +50,14 @@ export default function History() {
             <p className="dashboard__eyebrow">Feedback timeline</p>
             <h2 className="history-page__title">History</h2>
           </div>
-          {activeTab === TAB_LEAVE_AS_WRITTEN ? (
-            <button
-              type="button"
-              className="history-page__add-btn dashboard__btn dashboard__btn--primary"
-              onClick={addDemoLeaveAsWritten}
-            >
-              Add demo entry
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="history-page__add-btn dashboard__btn dashboard__btn--primary"
-              onClick={() => retry()}
-              disabled={loading}
-            >
-              Refresh
-            </button>
-          )}
+          <button
+            type="button"
+            className="history-page__add-btn dashboard__btn dashboard__btn--primary"
+            onClick={() => retry()}
+            disabled={loading}
+          >
+            Refresh
+          </button>
         </header>
 
         <div className="history-page__tabs" role="tablist" aria-label="History categories">
@@ -144,9 +100,8 @@ export default function History() {
           </p>
         )}
         <p className="history-page__hint">
-          <strong>Correction history</strong> lists suggestions saved from the extension after each
-          coach run. <strong>Leave as written</strong> is still a local demo until dismissals are
-          stored in app-api.
+          <strong>Correction history</strong> lists suggestions you accepted.{" "}
+          <strong>Leave as written</strong> lists suggestions you declined.
         </p>
 
         <div id="history-tabpanel" role="tabpanel" aria-labelledby={tabPanelLabelledBy}>
@@ -166,8 +121,9 @@ export default function History() {
                     </>
                   ) : (
                     <>
-                      Nothing here yet. When you tell the coach not to change a phrase, those
-                      choices will appear so the system stops recommending the same fix.
+                      {docId
+                        ? "No declined suggestions for this document yet."
+                        : "No declined suggestions for your account yet."}
                     </>
                   )}
                 </p>
