@@ -139,6 +139,21 @@ export async function apiFetch(path, options = {}) {
 export const api = {
   me: () => apiFetch("/api/users/me", { fallback: null }),
 
+  preferences: {
+    get: ({ headers: extraHeaders = {} } = {}) =>
+      apiFetch("/api/preferences", {
+        headers: extraHeaders,
+        fallback: { preferences: {} },
+      }),
+
+    update: (preferences, { headers: extraHeaders = {} } = {}) =>
+      apiFetch("/api/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...extraHeaders },
+        body: JSON.stringify(preferences),
+      }),
+  },
+
   history: (docId, { headers: extraHeaders = {} } = {}) =>
     apiFetch(`/api/feedback-history?docId=${encodeURIComponent(docId ?? "")}`, {
       headers: extraHeaders,

@@ -1,5 +1,6 @@
-﻿import { useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { ApiError, api } from "../lib/api";
 
 const STAT_ROWS = [
   { label: "Corrections you confirmed", value: "47" },
@@ -10,11 +11,66 @@ const STAT_ROWS = [
 ];
 
 const DEFAULT_PREFS = {
-  writingLevel: "undergraduate",
-  feedbackTone: "supportive",
-  focusArea: "clarity",
+  writingLevel: "Undergraduate",
+  feedbackTone: "Warm & encouraging",
+  focusArea: "Grammar & sentence clarity",
   explainCorrections: true,
 };
+
+const WRITING_LEVEL_OPTIONS = [
+  "Middle school",
+  "High school",
+  "Undergraduate",
+  "Graduate / post-graduate",
+  "Professional",
+];
+
+const FEEDBACK_TONE_OPTIONS = ["Warm & encouraging", "Direct & efficient", "Academic / formal"];
+
+const FOCUS_AREA_OPTIONS = [
+  "Grammar & sentence clarity",
+  "Organization & structure",
+  "Voice & word choice",
+  "Citations & source use",
+];
+
+function normalizeLegacyPreferenceValue(kind, value) {
+  if (typeof value !== "string") return value;
+  const raw = value.trim();
+  if (!raw) return value;
+
+  if (kind === "writingLevel") {
+    const map = {
+      middle: "Middle school",
+      high: "High school",
+      undergraduate: "Undergraduate",
+      graduate: "Graduate / post-graduate",
+      professional: "Professional",
+    };
+    return map[raw.toLowerCase()] || raw;
+  }
+
+  if (kind === "feedbackTone") {
+    const map = {
+      supportive: "Warm & encouraging",
+      direct: "Direct & efficient",
+      academic: "Academic / formal",
+    };
+    return map[raw.toLowerCase()] || raw;
+  }
+
+  if (kind === "focusArea") {
+    const map = {
+      clarity: "Grammar & sentence clarity",
+      structure: "Organization & structure",
+      voice: "Voice & word choice",
+      citations: "Citations & source use",
+    };
+    return map[raw.toLowerCase()] || raw;
+  }
+
+  return raw;
+}
 
 function formatJoined(isoOrMillis) {
   if (!isoOrMillis) return "—";
@@ -22,21 +78,117 @@ function formatJoined(isoOrMillis) {
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
+function mergePrefs(stored) {
+  if (!stored || typeof stored !== "object") return { ...DEFAULT_PREFS };
+  const writingLevel = normalizeLegacyPreferenceValue("writingLevel", stored.writingLevel);
+  const feedbackTone = normalizeLegacyPreferenceValue("feedbackTone", stored.feedbackTone);
+  const focusArea = normalizeLegacyPreferenceValue("focusArea", stored.focusArea);
+
+  return {
+    writingLevel:
+      typeof writingLevel === "string" && WRITING_LEVEL_OPTIONS.includes(writingLevel)
+        ? writingLevel
+        : DEFAULT_PREFS.writingLevel,
+    feedbackTone:
+      typeof feedbackTone === "string" && FEEDBACK_TONE_OPTIONS.includes(feedbackTone)
+        ? feedbackTone
+        : DEFAULT_PREFS.feedbackTone,
+    focusArea:
+      typeof focusArea === "string" && FOCUS_AREA_OPTIONS.includes(focusArea)
+        ? focusArea
+        : DEFAULT_PREFS.focusArea,
+    explainCorrections:
+      typeof stored.explainCorrections === "boolean"
+        ? stored.explainCorrections
+        : DEFAULT_PREFS.explainCorrections,
+  };
+}
+
+function prefsPayload(writingLevel, feedbackTone, focusArea, explainCorrections) {
+  return { writingLevel, feedbackTone, focusArea, explainCorrections };
+}
+
 export default function Profile() {
-  const { user, loading, signInWithGoogle, signOut, serverProfile, meLoading, meError } = useAuth();
+  const { user, loading, sessionReady, signInWithGoogle, signOut, serverProfile, meLoading, meError } =
+    useAuth();
   const [googleError, setGoogleError] = useState(null);
   const [writingLevel, setWritingLevel] = useState(DEFAULT_PREFS.writingLevel);
   const [feedbackTone, setFeedbackTone] = useState(DEFAULT_PREFS.feedbackTone);
   const [focusArea, setFocusArea] = useState(DEFAULT_PREFS.focusArea);
   const [explainCorrections, setExplainCorrections] = useState(DEFAULT_PREFS.explainCorrections);
+  const [prefsLoading, setPrefsLoading] = useState(false);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const [prefsSaving, setPrefsSaving] = useState(false);
+  const [prefsError, setPrefsError] = useState(null);
+  const skipSaveRef = useRef(true);
 
-  const email = user?.email?.trim() || "";
+  const email = serverProfile?.email?.trim() || user?.email?.trim() || "";
   const displayName =
+    serverProfile?.displayName?.trim() ||
     user?.displayName?.trim() ||
     (email ? email.split("@")[0].replace(/\./g, " ") : "") ||
     (user?.uid ? `User ${user.uid.slice(0, 8)}` : "");
+  const accountCreated = serverProfile?.createdAt || user?.metadata?.creationTime || null;
   const initial = displayName.slice(0, 1).toUpperCase() || "?";
   const photoURL = user?.photoURL || "";
+
+  useEffect(() => {
+    if (!user || !sessionReady) {
+      setPrefsLoaded(false);
+      skipSaveRef.current = true;
+      return undefined;
+    }
+
+    let cancelled = false;
+    setPrefsLoading(true);
+    setPrefsError(null);
+    skipSaveRef.current = true;
+
+    (async () => {
+      try {
+        const body = await api.preferences.get();
+        if (cancelled) return;
+        const merged = mergePrefs(body?.preferences);
+        setWritingLevel(merged.writingLevel);
+        setFeedbackTone(merged.feedbackTone);
+        setFocusArea(merged.focusArea);
+        setExplainCorrections(merged.explainCorrections);
+      } catch (err) {
+        if (cancelled) return;
+        const code = err instanceof ApiError ? err.code : err instanceof Error ? err.message : "unknown_error";
+        setPrefsError(code);
+      } finally {
+        if (!cancelled) {
+          setPrefsLoading(false);
+          setPrefsLoaded(true);
+          skipSaveRef.current = false;
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, sessionReady]);
+
+  useEffect(() => {
+    if (!user || !sessionReady || !prefsLoaded || skipSaveRef.current) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setPrefsSaving(true);
+      setPrefsError(null);
+      void api
+        .preferences.update(prefsPayload(writingLevel, feedbackTone, focusArea, explainCorrections))
+        .catch((err) => {
+          const code =
+            err instanceof ApiError ? err.code : err instanceof Error ? err.message : "unknown_error";
+          setPrefsError(code);
+        })
+        .finally(() => setPrefsSaving(false));
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [user, sessionReady, prefsLoaded, writingLevel, feedbackTone, focusArea, explainCorrections]);
 
   async function handleGoogleSignIn() {
     setGoogleError(null);
@@ -47,6 +199,8 @@ export default function Profile() {
       setGoogleError(code);
     }
   }
+
+  const prefsDisabled = prefsLoading || !sessionReady;
 
   if (loading) {
     return (
@@ -121,7 +275,7 @@ export default function Profile() {
                   <p className="profile-page__email-line">{email || "No email on this account"}</p>
                   <dl className="profile-page__joined">
                     <dt>Account created</dt>
-                    <dd>{formatJoined(user.metadata?.creationTime)}</dd>
+                    <dd>{formatJoined(accountCreated)}</dd>
                   </dl>
                   {meLoading && (
                     <p className="profile-page__email-line" aria-live="polite">
@@ -132,16 +286,6 @@ export default function Profile() {
                     <p className="profile-page__hint" role="alert">
                       Could not load server profile ({meError}). Check that app-api is running and reachable.
                     </p>
-                  )}
-                  {!meLoading && serverProfile && Object.keys(serverProfile).length > 0 && (
-                    <dl className="profile-page__joined">
-                      {serverProfile.createdAt && (
-                        <>
-                          <dt>Profile stored</dt>
-                          <dd>{formatJoined(serverProfile.createdAt)}</dd>
-                        </>
-                      )}
-                    </dl>
                   )}
                   <div className="dashboard__ribbon" aria-hidden="true">
                     <span>Learning snapshot below is sample data until wired to analytics</span>
@@ -171,11 +315,25 @@ export default function Profile() {
                   Writing preferences
                 </h3>
                 <p className="profile-page__customize-lede">
-                  Tune how the coach frames feedback. These controls are preview-only until the app saves them to your
-                  account.
+                  Tune how the coach frames feedback. Changes save automatically to your account.
                 </p>
+                {prefsLoading && (
+                  <p className="profile-page__email-line" aria-live="polite">
+                    Loading saved preferences…
+                  </p>
+                )}
+                {prefsSaving && !prefsLoading && (
+                  <p className="profile-page__email-line" aria-live="polite">
+                    Saving…
+                  </p>
+                )}
+                {prefsError && (
+                  <p className="profile-page__hint" role="alert">
+                    Could not save preferences ({prefsError}). Check that app-api is running and reachable.
+                  </p>
+                )}
 
-                <div className="profile-page__customize-fields">
+                <fieldset className="profile-page__customize-fields" disabled={prefsDisabled}>
                   <label className="profile-page__label" htmlFor="profile-writing-level">
                     Level you write at
                   </label>
@@ -185,11 +343,11 @@ export default function Profile() {
                     value={writingLevel}
                     onChange={(e) => setWritingLevel(e.target.value)}
                   >
-                    <option value="middle">Middle school</option>
-                    <option value="high">High school</option>
-                    <option value="undergraduate">Undergraduate</option>
-                    <option value="graduate">Graduate / post-graduate</option>
-                    <option value="professional">Professional</option>
+                    {WRITING_LEVEL_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
                   </select>
 
                   <label className="profile-page__label" htmlFor="profile-feedback-tone">
@@ -201,9 +359,11 @@ export default function Profile() {
                     value={feedbackTone}
                     onChange={(e) => setFeedbackTone(e.target.value)}
                   >
-                    <option value="supportive">Warm &amp; encouraging</option>
-                    <option value="direct">Direct &amp; efficient</option>
-                    <option value="academic">Academic / formal</option>
+                    {FEEDBACK_TONE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
                   </select>
 
                   <label className="profile-page__label" htmlFor="profile-focus">
@@ -215,10 +375,11 @@ export default function Profile() {
                     value={focusArea}
                     onChange={(e) => setFocusArea(e.target.value)}
                   >
-                    <option value="clarity">Grammar &amp; sentence clarity</option>
-                    <option value="structure">Organization &amp; structure</option>
-                    <option value="voice">Voice &amp; word choice</option>
-                    <option value="citations">Citations &amp; source use</option>
+                    {FOCUS_AREA_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
                   </select>
 
                   <label className="profile-page__checkbox">
@@ -229,7 +390,7 @@ export default function Profile() {
                     />
                     <span>Show short explanations with suggestions</span>
                   </label>
-                </div>
+                </fieldset>
               </section>
             </div>
           </div>
