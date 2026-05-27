@@ -3,12 +3,152 @@ import dictionaryEn from "dictionary-en";
 import { tokenize, HEDGE_WORDS, countMatches } from "../lib/nlp.js";
 import { isLikelyGibberishToken } from "../lib/word-quality.js";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Seed tables
+//
+// These tables exist ONLY for cases where the general-purpose engines below
+// cannot reason correctly on their own:
+//   - SPELLING_OVERRIDES: the Hunspell dictionary would flag the word but give
+//     a misleading or wrong suggestion — so we override with a better one.
+//   - PHRASE_RULES: multi-word confusions (their/there, should of, etc.) that
+//     require matching a phrase rather than a single token.
+//   - TYPO_OVERRIDES: very short transpositions the dictionary would accept
+//     or misclassify in context.
+//
+// The dictionary engine, apostrophe-detection engine, and algorithmic checks
+// handle everything else dynamically — including patterns not listed here.
+// To add a new rule, extend one of these tables; no logic changes are needed.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Explicit misspelling overrides: used when the Hunspell dictionary produces
+ * a misleading suggestion for a known misspelling (e.g., "pregnate" → "primate").
+ * For words the dictionary handles accurately, omit them here and let it work.
+ *
+ * @type {Array<{ pattern: RegExp, fix: string, note?: string }>}
+ */
+export const SPELLING_OVERRIDES = [
+  // Dictionary suggestions for these are often wrong or unhelpful.
+  { pattern: /\bpregnate\b/i,       fix: "pregnant" },
+  { pattern: /\bbrib(es|ed|ing)?\b/i, fix: "bribe",    note: "verb/noun for offering money improperly" },
+  // Kept for the pedagogical note — explains the i-before-e rule.
+  { pattern: /\brecieve\b/i,        fix: "receive",   note: "i before e except after c" },
+  { pattern: /\bwierd\b/i,          fix: "weird",     note: "i before e rule" },
+];
+
+/**
+ * Phrase-level grammar and word-confusion rules.
+ * Only include unambiguous patterns where a wrong word is structurally
+ * detectable without full sentence parsing (e.g., "their is/are" is
+ * always wrong; "their" before a noun is correct).
+ *
+ * @type {Array<{
+ *   pattern: RegExp,
+ *   type: string,
+ *   title: string,
+ *   body: string,
+ *   micro_edit: string | null
+ * }>}
+ */
+export const PHRASE_RULES = [
+  // their / there confusion — "their" before a verb is almost always "there"
+  {
+    pattern: /\btheir\s+(?:is|are|was|were|have|has|had|will|would|could|should|may|might|must|been|no\b)/i,
+    type: "grammar",
+    title: "Word confusion: \u201ctheir\u201d vs \u201cthere\u201d",
+    body: "**Their** shows possession (belonging to them). **There** points to a place or introduces a clause. Use **there** here.",
+    micro_edit: null,
+  },
+  // "should / could / would of" — mishearing of the contraction
+  {
+    pattern: /\bshould\s+of\b/i,
+    type: "grammar",
+    title: "Grammar: \u201cshould of\u201d",
+    body: "This sounds like a contraction but the correct form is **should have** (or *should\u2019ve*).",
+    micro_edit: "should have",
+  },
+  {
+    pattern: /\bcould\s+of\b/i,
+    type: "grammar",
+    title: "Grammar: \u201ccould of\u201d",
+    body: "The correct form is **could have** (or *could\u2019ve*).",
+    micro_edit: "could have",
+  },
+  {
+    pattern: /\bwould\s+of\b/i,
+    type: "grammar",
+    title: "Grammar: \u201cwould of\u201d",
+    body: "The correct form is **would have** (or *would\u2019ve*).",
+    micro_edit: "would have",
+  },
+  // "your welcome" — possessive vs contraction
+  {
+    pattern: /\byour\s+welcome\b/i,
+    type: "grammar",
+    title: "Phrase: \u201cyour welcome\u201d",
+    body: "For \u201cyou are welcome,\u201d use the contraction **you\u2019re** (not the possessive *your*).",
+    micro_edit: "You're welcome",
+  },
+  // Subject–verb agreement: "there is + plural quantifier"
+  {
+    pattern: /\bthere\s+is\s+(?:so\s+)?many\b/i,
+    type: "grammar",
+    title: "Subject\u2013verb agreement",
+    body: "**Many** is plural, so standard English uses **there are** (not *there is*).",
+    micro_edit: null,
+  },
+];
+
+/**
+ * Short-word typo overrides: common transpositions that the dictionary either
+ * accepts or produces poor suggestions for because the word is too short.
+ *
+ * @type {Array<{ pattern: RegExp, fix: string, note?: string }>}
+ */
+export const TYPO_OVERRIDES = [
+  { pattern: /\bteh\b/i, fix: "the", note: "transposed letters" },
+];
+
+/**
+ * Thresholds for structural heuristics — tune these without touching logic.
+ */
+export const HEURISTIC_THRESHOLDS = {
+  LONG_SENTENCE_WORDS: 40,
+  HEDGE_REPEAT_MIN: 3,
+  OBVIOUS_MAX_CARDS: 12,
+  STRUCTURAL_MAX_CARDS: 5,
+};
+
+/**
+ * Tone-shift rules: fire when BOTH a casual-register word AND a formal-topic
+ * word appear in the same passage.
+ *
+ * @type {Array<{ casual: RegExp, formal: RegExp, title: string, body: string }>}
+ */
+export const TONE_SHIFT_RULES = [
+  {
+    casual: /\b(shit|fuck|damn|crap|ass)\b/i,
+    formal: /\b(vision|product|report|essay|thesis|professor|client|proposal|stakeholder)\b/i,
+    title: "Tone shift: casual language in a formal context",
+    body: "Casual language can be honest voice\u2014but next to formal topic words, readers may need one bridge sentence to confirm the register is intentional.",
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dictionary spell checker (Hunspell via nspell)
+// ─────────────────────────────────────────────────────────────────────────────
+
 /** @type {import("nspell") | null} */
 let spellchecker = null;
 
+/**
+ * Words the dictionary should skip entirely.
+ * Does NOT include contraction-without-apostrophe forms (dont, youre, etc.) —
+ * those are handled dynamically by apostrophe-insertion detection below.
+ */
 const SPELL_ALLOW = new Set(
   `omg lol lmao rofl imo tbh idk btw fr frfr ngl irl ig u ur bc cos cuz tho thru pls plz ppl ok okay yep nah huh hmm hm er um uh kinda sorta gonna wanna gotta hell damn darn shoot dang heck yeet sus cap fax nope haha hahaha woah whoa yall ya'll gonna cv api css html js ts jpg png gif pdf url uri sql dns tcp http https www com org net io co uk app apps ios android bro holy shit fuck fucking freaking crap ass dude man guys gon na`
-    .split(/\s+/),
+    .split(/\s+/).filter(Boolean),
 );
 
 try {
@@ -17,7 +157,11 @@ try {
   console.warn("Heuristics spellchecker unavailable:", e?.message || e);
 }
 
-/** Skip dictionary pass when many long tokens are not real English words. */
+// ─────────────────────────────────────────────────────────────────────────────
+// Engine functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Skip the dictionary pass when most tokens look like random typing. */
 export function draftHasHeavyUnknownTokens(text) {
   if (!spellchecker) return false;
   const tokens = String(text || "").match(/\b[a-zA-Z]{4,}\b/g) || [];
@@ -26,18 +170,23 @@ export function draftHasHeavyUnknownTokens(text) {
   for (const raw of tokens) {
     const lw = raw.toLowerCase();
     if (SPELL_ALLOW.has(lw)) continue;
-    if (lw.length === 4) {
-      unknown += 1;
-      continue;
-    }
+    if (lw.length === 4) { unknown += 1; continue; }
     if (isLikelyGibberishToken(raw) || !spellchecker.correct(lw)) unknown += 1;
   }
   return unknown / tokens.length >= 0.4;
 }
 
 /**
- * @param {string} text
- * @param {{ maxCards?: number }} [opts]
+ * Dictionary-powered spell and apostrophe checker.
+ *
+ * Apostrophe-insertion detection: when Hunspell's top suggestion for a word
+ * is the same word with an apostrophe added (e.g. dont → don't, youre → you're),
+ * the card is emitted as "Missing apostrophe" rather than "Spelling". This
+ * generalises contraction detection to any contraction Hunspell knows — no
+ * explicit list of contraction forms is required.
+ *
+ * Proper-noun guard: words starting with a capital letter are skipped because
+ * the dictionary produces misleading suggestions for names and brands.
  */
 export function spellDictionarySuggestions(text, opts = {}) {
   if (!spellchecker) return [];
@@ -46,129 +195,158 @@ export function spellDictionarySuggestions(text, opts = {}) {
   const t = String(text);
   const seen = new Set();
   const cards = [];
-  for (const m of t.matchAll(/\b([a-zA-Z]{4,})\b/g)) {
-    const raw = m[1];
-    const lw = raw.toLowerCase();
-    // 4-letter tokens are often keyboard noise (e.g. "aodj" → bogus "adj" fixes).
-    if (lw.length === 4) continue;
-    if (SPELL_ALLOW.has(lw)) continue;
-    if (isLikelyGibberishToken(raw)) continue;
+
+  // Check SPELLING_OVERRIDES first so they get priority slots.
+  for (const rule of SPELLING_OVERRIDES) {
+    const m = rule.pattern.exec(t);
+    if (!m) continue;
+    const lw = m[0].toLowerCase();
     if (seen.has(lw)) continue;
-    if (/^[A-Z]{2,}$/.test(raw)) continue;
-    if (spell.correct(lw)) continue;
-    const sug = spell.suggest(lw);
-    if (!sug?.length) continue;
     seen.add(lw);
     cards.push({
       type: "grammar",
-      title: `Spelling: “${raw}”`,
-      body: `Likely typo—dictionary suggests **${sug[0]}**${sug[1] ? ` or *${sug[1]}*` : ""}. Pick the word that matches your meaning; keep your tone.`,
-      micro_edit: sug[0],
+      title: `Spelling: \u201c${m[0]}\u201d`,
+      body: `Standard spelling is **${rule.fix}**${rule.note ? ` (${rule.note})` : ""}.`,
+      micro_edit: rule.fix,
     });
     if (cards.length >= maxCards) break;
   }
+
+  for (const m of t.matchAll(/\b([a-zA-Z]{4,})\b/g)) {
+    if (cards.length >= maxCards) break;
+    const raw = m[1];
+    const lw = raw.toLowerCase();
+
+    if (SPELL_ALLOW.has(lw)) continue;
+    if (seen.has(lw)) continue;
+    if (isLikelyGibberishToken(raw)) continue;
+    if (/^[A-Z]{2,}$/.test(raw)) continue;      // ALL-CAPS acronyms
+    if (/^[A-Z]/.test(raw)) continue;             // Likely proper nouns
+
+    // Check SPELLING_OVERRIDES coverage — skip if already emitted above.
+    if (SPELLING_OVERRIDES.some((r) => r.pattern.test(raw))) continue;
+
+    if (spell.correct(lw)) continue;
+
+    const sug = spell.suggest(lw);
+    if (!sug?.length) continue;
+
+    const topSug = sug[0];
+
+    // Detect apostrophe-insertion: suggestion equals original word + apostrophe(s).
+    const isApostropheInsertion = topSug.replace(/'/g, "") === lw;
+
+    // For 4-letter words, only proceed for apostrophe-insertions — too many
+    // false positives from short keyboard noise otherwise.
+    if (lw.length === 4 && !isApostropheInsertion) continue;
+
+    // Skip if suggestions are only capitalisation variants of the same word.
+    if (!isApostropheInsertion && sug.every((s) => s.toLowerCase() === lw)) continue;
+
+    seen.add(lw);
+
+    if (isApostropheInsertion) {
+      cards.push({
+        type: "grammar",
+        title: `Missing apostrophe: \u201c${raw}\u201d`,
+        body: `\u201c${raw}\u201d is missing an apostrophe. Standard form is **${topSug}**.`,
+        micro_edit: topSug,
+      });
+    } else {
+      cards.push({
+        type: "grammar",
+        title: `Spelling: \u201c${raw}\u201d`,
+        body: `Likely typo\u2014dictionary suggests **${topSug}**${sug[1] ? ` or *${sug[1]}*` : ""}. Pick the word that matches your meaning.`,
+        micro_edit: topSug,
+      });
+    }
+  }
+
   return cards;
 }
 
+/**
+ * Mechanical per-token and phrase checks.
+ *
+ * Algorithmic checks run before the seed-table loops so they are never
+ * displaced by a large number of matches from the phrase or typo tables.
+ */
 export function obviousSpellingGrammarHeuristics(text) {
   const t = String(text || "");
   const out = [];
-  const add = (card) => {
-    if (card?.title) out.push(card);
-  };
+  const add = (card) => { if (card?.title) out.push(card); };
 
-  if (/\bpregnate\b/i.test(t)) {
-    add({
-      type: "grammar",
-      title: "Spelling: “pregnate”",
-      body: "Standard spelling is **pregnant** (expecting a baby).",
-      micro_edit: "pregnant",
-    });
-  }
-  if (/\bbrib(es|ed|ing|e)?\b/i.test(t)) {
-    add({
-      type: "grammar",
-      title: "Spelling: “brib”",
-      body: "Use **bribe** for the verb/noun (offer money improperly).",
-      micro_edit: "bribe",
-    });
-  }
-  if (/\bdeat\b/i.test(t)) {
+  // ── Algorithmic checks (generalise to any input) ───────────────────────────
+
+  // Repeated-word nonsense: "words words words words"
+  const repeatedWord = t.match(/\b(\w{3,})\b(?:\s+\1\b){3,}/i);
+  if (repeatedWord) {
     add({
       type: "clarity",
-      title: "Word check: “deat”",
-      body: "Readers will stumble here. Common fixes: **dead**, **debt**, or **deaf**—pick the one you mean.",
+      title: `Repeated word: \u201c${repeatedWord[1]}\u201d`,
+      body: `\u201c${repeatedWord[1]}\u201d appears many times in a row. This reads as placeholder or test text rather than intended content.`,
       micro_edit: null,
     });
   }
-  if (/\bthere\s+is\s+so\s+many\b/i.test(t)) {
+
+  // Sentence-start capitalization
+  if (/[.!?]\s+[a-z]/.test(t)) {
     add({
       type: "grammar",
-      title: "Grammar: “there is” with a plural",
-      body: "**Many things** are plural, so standard English uses **there are** (not *there is*).",
-      micro_edit: "There are so many",
-    });
-  }
-  if (/\bthere\s+is\s+many\b/i.test(t)) {
-    add({
-      type: "grammar",
-      title: "Grammar: “there is many”",
-      body: "Use **there are many** so the verb agrees with the plural subject.",
+      title: "Lowercase letter after sentence end",
+      body: "Each new sentence should begin with a capital letter. A lowercase letter was found after a period, question mark, or exclamation mark.",
       micro_edit: null,
     });
   }
-  if (/\bdefinately\b/i.test(t)) {
+
+  // Uncapitalized first-person pronoun
+  if (/(?:^|\s)i(?=\s|[',;.!?]|$)/m.test(t)) {
     add({
       type: "grammar",
-      title: "Spelling: “definately”",
-      body: "Standard spelling is **definitely**.",
-      micro_edit: "definitely",
+      title: "Uncapitalized \u201cI\u201d",
+      body: 'When \u201ci\u201d refers to yourself, it should always be capitalized: **I**.',
+      micro_edit: null,
     });
   }
-  if (/\brecieve\b/i.test(t)) {
+
+  // Letter elongation: goooood, heeello, noiseeeee
+  const elongMatch = t.match(/\b[a-zA-Z]*([a-zA-Z])\1{2,}[a-zA-Z]*\b/);
+  if (elongMatch) {
     add({
       type: "grammar",
-      title: "Spelling: “recieve”",
-      body: "Standard spelling is **receive** (i before e except after c pattern does not apply here).",
-      micro_edit: "receive",
+      title: `Letter extension: \u201c${elongMatch[0]}\u201d`,
+      body: "Standard spelling doesn\u2019t repeat letters for emphasis. Remove the extra letters to use the standard form.",
+      micro_edit: null,
     });
   }
-  if (/\boccured\b/i.test(t)) {
-    add({
-      type: "grammar",
-      title: "Spelling: “occured”",
-      body: "Standard spelling is **occurred** (double r).",
-      micro_edit: "occurred",
-    });
+
+  // ── Seed-table loops ───────────────────────────────────────────────────────
+
+  // PHRASE_RULES
+  for (const rule of PHRASE_RULES) {
+    if (rule.pattern.test(t)) {
+      add({ type: rule.type, title: rule.title, body: rule.body, micro_edit: rule.micro_edit });
+    }
   }
-  if (/\bseperate\b/i.test(t)) {
-    add({
-      type: "grammar",
-      title: "Spelling: “seperate”",
-      body: "Standard spelling is **separate**.",
-      micro_edit: "separate",
-    });
+
+  // TYPO_OVERRIDES (short transpositions the dict misses)
+  for (const rule of TYPO_OVERRIDES) {
+    const m = rule.pattern.exec(t);
+    if (m) {
+      add({
+        type: "grammar",
+        title: `Typo: \u201c${m[0]}\u201d`,
+        body: `Looks like **${rule.fix}**${rule.note ? ` (${rule.note})` : ""}.`,
+        micro_edit: rule.fix,
+      });
+    }
   }
-  if (/\bteh\b/i.test(t)) {
-    add({
-      type: "grammar",
-      title: "Typo: “teh”",
-      body: "Looks like **the** with letters swapped.",
-      micro_edit: "the",
-    });
-  }
-  if (/\byour\s+welcome\b/i.test(t)) {
-    add({
-      type: "grammar",
-      title: "Phrase: “your welcome”",
-      body: "For “you are welcome,” use the contraction **you're**.",
-      micro_edit: "You're welcome",
-    });
-  }
-  return out.slice(0, 5);
+
+  return out.slice(0, HEURISTIC_THRESHOLDS.OBVIOUS_MAX_CARDS);
 }
 
 /**
+ * Structural / style heuristics (whole-draft analysis).
  * @param {string} text
  * @param {"typing" | "paused"} mode
  */
@@ -177,93 +355,92 @@ export function heuristicSuggestions(text, mode = "paused") {
   const pausedOnly = mode === "paused";
 
   if (pausedOnly) {
+    // TONE_SHIFT_RULES
+    for (const rule of TONE_SHIFT_RULES) {
+      if (rule.casual.test(text) && rule.formal.test(text)) {
+        suggestions.push({ type: "voice", title: rule.title, body: rule.body, micro_edit: null });
+      }
+    }
+
+    // Question phrasing without "?"
     const asksWithoutMark = text.match(/\b(?:friend|they|she|he)\s+asks?\b(?![^.!?\n]*\?)/gi);
     if (asksWithoutMark?.length) {
       suggestions.push({
         type: "punctuation",
-        title: "Question phrasing without “?”",
-        body:
-          `Phrases like “${asksWithoutMark[0]}” read as questions to many readers. A question mark (or rephrasing as a statement) makes the turn in the conversation easier to follow.`,
+        title: "Question phrasing without \u201c?\u201d",
+        body: `Phrases like \u201c${asksWithoutMark[0]}\u201d read as questions to many readers. A question mark (or rephrasing as a statement) makes the conversation easier to follow.`,
         micro_edit: null,
       });
     }
-    if (/\b(shit|fuck|damn)\b/i.test(text) && /\b(vision|product|report|essay|thesis|professor|client)\b/i.test(text)) {
-      suggestions.push({
-        type: "voice",
-        title: "Tone shift: casual heat + formal topic",
-        body:
-          "Swearing can be honest voice—but next to product/vision language, some readers need one bridge sentence so the register feels intentional, not accidental.",
-        micro_edit: null,
-      });
-    }
-  }
 
-  if (pausedOnly) {
+    // Very long sentences
     const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
     if (sentences.length > 1) {
-      const longOnes = sentences.filter((s) => s.split(/\s+/).length > 40);
+      const longOnes = sentences.filter(
+        (s) => s.split(/\s+/).length > HEURISTIC_THRESHOLDS.LONG_SENTENCE_WORDS,
+      );
       if (longOnes.length) {
         suggestions.push({
           type: "coherence",
           title: "Very long sentence(s)",
-          body:
-            "Readers track one main idea per sentence. Try splitting the longest sentence into two: keep your voice, but give each sentence a single job.",
+          body: "Readers track one main idea per sentence. Try splitting the longest sentence into two\u2014give each sentence a single job.",
           micro_edit: null,
         });
       }
     }
+
+    // Overused hedge/filler words
     const words = tokenize(text);
-    const filler = HEDGE_WORDS;
     const counts = new Map();
     for (const w of words) {
-      if (filler.includes(w)) counts.set(w, (counts.get(w) || 0) + 1);
+      if (HEDGE_WORDS.includes(w)) counts.set(w, (counts.get(w) || 0) + 1);
     }
     for (const [w, c] of counts) {
-      if (c >= 3) {
+      if (c >= HEURISTIC_THRESHOLDS.HEDGE_REPEAT_MIN) {
         suggestions.push({
           type: "pattern",
-          title: `Repeated hedge/filler: “${w}”`,
-          body:
-            "This is often how people talk—and that is fine. If it clusters, readers may read it as uncertainty. Try cutting half of them on a second pass, not all.",
+          title: `Repeated hedge/filler: \u201c${w}\u201d`,
+          body: "This is often how people talk\u2014and that is fine. If it clusters, readers may read it as uncertainty. Try cutting half of them on a second pass, not all.",
           micro_edit: null,
         });
         break;
       }
     }
-  }
 
-  if (text.includes("  ")) {
-    suggestions.push({
-      type: "clarity",
-      title: "Extra spaces",
-      body: "Small formatting glitches can distract in polished contexts. Not a voice issue—just cleanup.",
-      micro_edit: null,
-    });
-  }
-
-  if (pausedOnly) {
-    const punctClusters = countMatches(text, /[!?]{2,}|\.{4,}/g);
-    if (punctClusters > 0) {
+    // Repeated punctuation clusters
+    if (countMatches(text, /[!?]{2,}|\.{4,}/g) > 0) {
       suggestions.push({
         type: "punctuation",
         title: "Repeated punctuation clusters",
-        body:
-          "Repeated punctuation can be expressive. In formal or mixed audiences, reserve it for emphasis points so your main ideas still read as precise.",
+        body: "Repeated punctuation can be expressive. In formal or mixed audiences, reserve it for emphasis points so your main ideas still read as precise.",
         micro_edit: null,
       });
     }
   }
 
-  const commaSplice = String(text).match(/\b[^.!?\n]{6,},\s+[a-z]+\s+(?:i|you|we|they|he|she|it)\b/i);
-  if (commaSplice) {
+  // Extra spaces (all modes)
+  if (text.includes("  ")) {
     suggestions.push({
-      type: "grammar",
-      title: "Possible comma splice",
-      body:
-        "A comma may be joining two full thoughts. Try a period, semicolon, or a connector (for example, because/so) to keep your logic clear.",
+      type: "clarity",
+      title: "Extra spaces",
+      body: "Small formatting glitches can distract in polished contexts. Not a voice issue\u2014just cleanup.",
       micro_edit: null,
     });
   }
 
-  return suggestions.slice(0, 5);
+  // Comma splice — broadened pattern catches "canceled, nobody told me, I still drove"
+  const commaSplicePatterns = [
+    /,\s+(?:I\b|(?:he|she|they|we|it|nobody|everyone|somebody|someone|anyone|no\s+one)\s)/i,
+    /\b[^.!?\n]{6,},\s+[a-z]+\s+(?:i|you|we|they|he|she|it)\b/i,
+  ];
+  if (commaSplicePatterns.some((p) => p.test(text))) {
+    suggestions.push({
+      type: "grammar",
+      title: "Possible comma splice",
+      body: "A comma may be joining two or more full thoughts without a conjunction. Try a period, semicolon, or a connector (e.g. *because* / *so* / *and*) to make the structure clear.",
+      micro_edit: null,
+    });
+  }
+
+  return suggestions.slice(0, HEURISTIC_THRESHOLDS.STRUCTURAL_MAX_CARDS);
 }
