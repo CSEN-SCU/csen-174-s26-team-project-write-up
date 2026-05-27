@@ -116,7 +116,7 @@ export const HEURISTIC_THRESHOLDS = {
   LONG_SENTENCE_WORDS: 40,
   HEDGE_REPEAT_MIN: 3,
   OBVIOUS_MAX_CARDS: 12,
-  STRUCTURAL_MAX_CARDS: 5,
+  STRUCTURAL_MAX_CARDS: 8,
 };
 
 /**
@@ -150,6 +150,23 @@ const SPELL_ALLOW = new Set(
   `omg lol lmao rofl imo tbh idk btw fr frfr ngl irl ig u ur bc cos cuz tho thru pls plz ppl ok okay yep nah huh hmm hm er um uh kinda sorta gonna wanna gotta hell damn darn shoot dang heck yeet sus cap fax nope haha hahaha woah whoa yall ya'll gonna cv api css html js ts jpg png gif pdf url uri sql dns tcp http https www com org net io co uk app apps ios android bro holy shit fuck fucking freaking crap ass dude man guys gon na`
     .split(/\s+/).filter(Boolean),
 );
+
+/**
+ * Lowercase forms of words that are ALWAYS correctly capitalized in English
+ * (days, months, nationalities, major proper-noun brands).
+ * A mid-sentence capital word whose lowercase is in this set is skipped by
+ * the unnecessary-capitalization check.
+ */
+const ALWAYS_PROPER_LOWER = new Set((
+  "monday tuesday wednesday thursday friday saturday sunday " +
+  "january february march april may june july august " +
+  "september october november december " +
+  "english french spanish german chinese japanese korean arabic " +
+  "russian italian portuguese dutch swedish norwegian danish finnish " +
+  "american european asian african latin british australian canadian " +
+  "christian muslim jewish buddhist hindu protestant catholic " +
+  "internet"
+).split(" "));
 
 try {
   spellchecker = nspell(dictionaryEn);
@@ -221,15 +238,73 @@ export function spellDictionarySuggestions(text, opts = {}) {
     if (seen.has(lw)) continue;
     if (isLikelyGibberishToken(raw)) continue;
     if (/^[A-Z]{2,}$/.test(raw)) continue;      // ALL-CAPS acronyms
-    if (/^[A-Z]/.test(raw)) continue;             // Likely proper nouns
+    if (/^[A-Z]/.test(raw)) {
+      // Mid-sentence capitalization check: if the lowercase form is a known
+      // dictionary word AND the word is not at a sentence boundary AND it's
+      // not in the always-proper allowlist, flag it as possibly unnecessary.
+      if (!seen.has(lw) && !ALWAYS_PROPER_LOWER.has(lw) && spell.correct(lw)) {
+        const prevText = t.slice(0, m.index).trimEnd();
+        const atBoundary =
+          !prevText ||
+          /[.!?\n]["'\u201D\u2019]?\s*$/.test(prevText) ||
+          /:\s*$/.test(prevText);
+        if (!atBoundary) {
+          seen.add(lw);
+          cards.push({
+            type: "grammar",
+            title: `Capitalization: \u201c${raw}\u201d`,
+            body: `\u201c${raw}\u201d appears mid-sentence. Only proper nouns (names, places, titles) are capitalized in standard English. If this is a common word, use \u201c${lw}\u201d instead.`,
+            micro_edit: lw,
+          });
+        }
+      }
+      continue; // never run spelling checks on capital-initial words
+    }
 
     // Check SPELLING_OVERRIDES coverage — skip if already emitted above.
     if (SPELLING_OVERRIDES.some((r) => r.pattern.test(raw))) continue;
 
     if (spell.correct(lw)) continue;
 
+    // Detect compound-word fusing before falling through to dictionary suggestions.
+    // e.g. "thebook" → "the" + "book".  Only attempt for tokens ≥ 5 characters;
+    // 4-letter tokens are already filtered out below.
+    if (lw.length >= 5) {
+      let splitCard = null;
+      for (let cut = 2; cut <= lw.length - 2; cut++) {
+        const left = lw.slice(0, cut);
+        const right = lw.slice(cut);
+        if (spell.correct(left) && spell.correct(right)) {
+          splitCard = {
+            type: "grammar",
+            title: `Possible split: \u201c${raw}\u201d`,
+            body: `This looks like two words fused together: **${left} ${right}**. Add a space if that matches your meaning.`,
+            micro_edit: `${left} ${right}`,
+          };
+          break;
+        }
+      }
+      if (splitCard) {
+        seen.add(lw);
+        cards.push(splitCard);
+        continue;
+      }
+    }
+
     const sug = spell.suggest(lw);
-    if (!sug?.length) continue;
+
+    // When the dictionary flags a word but has no substitute, still emit a card —
+    // the absence of a suggestion should not silently suppress the flag.
+    if (!sug?.length) {
+      seen.add(lw);
+      cards.push({
+        type: "grammar",
+        title: `Unrecognized word: \u201c${raw}\u201d`,
+        body: `\u201c${raw}\u201d isn\u2019t in the dictionary and no substitute was found. Double-check the spelling.`,
+        micro_edit: null,
+      });
+      continue;
+    }
 
     const topSug = sug[0];
 
@@ -416,6 +491,46 @@ export function heuristicSuggestions(text, mode = "paused") {
         micro_edit: null,
       });
     }
+
+    // Semicolon before coordinating conjunction
+    // ("I love dogs; and I have two" → should use a comma, not a semicolon)
+    const semiConjMatch = /;\s*(and|but|or|so|for|nor|yet)\b/i.exec(text);
+    if (semiConjMatch) {
+      const idx = semiConjMatch.index;
+      const snippet = text
+        .slice(Math.max(0, idx - 20), Math.min(text.length, idx + semiConjMatch[0].length + 20))
+        .trim()
+        .replace(/\s+/g, " ");
+      suggestions.push({
+        type: "punctuation",
+        title: "Semicolon before conjunction",
+        body: `Near \u201c\u2026${snippet}\u2026\u201d \u2014 a semicolon before *${semiConjMatch[1]}* is usually a sign to use a comma instead. Semicolons connect two independent clauses on their own; coordinating conjunctions (and/but/or\u2026) pair with a comma.`,
+        micro_edit: null,
+      });
+    }
+
+    // Run-on sentence: two subject-pronoun clauses in one sentence with no
+    // comma, semicolon, or connecting word separating them.
+    // Only checks segments 8–40 words long to avoid overlap with "Very long sentence".
+    const runOnSegments = text.split(/[.!?\n]+/).filter((s) => s.trim().length > 0);
+    for (const seg of runOnSegments) {
+      const trimmed = seg.trim();
+      const wordCount = trimmed.split(/\s+/).length;
+      if (wordCount < 8 || wordCount > HEURISTIC_THRESHOLDS.LONG_SENTENCE_WORDS) continue;
+      if (/[,;]/.test(trimmed)) continue;
+      if (/\b(?:and|but|or|so|for|nor|yet|because|although|while|since|if|when|that|which|who|whom|however|therefore|then|though)\b/i.test(trimmed)) continue;
+      const pronounHits = trimmed.match(/\b(?:I|he|she|we|they|you)\b/gi) || [];
+      if (pronounHits.length >= 2) {
+        const snippet = trimmed.length > 70 ? `${trimmed.slice(0, 70)}\u2026` : trimmed;
+        suggestions.push({
+          type: "coherence",
+          title: "Possible run-on sentence",
+          body: `Near \u201c${snippet}\u201d \u2014 two thoughts may be fused without punctuation or a joining word. Try a period, a comma + conjunction, or a semicolon between them.`,
+          micro_edit: null,
+        });
+        break;
+      }
+    }
   }
 
   // Extra spaces (all modes)
@@ -433,11 +548,20 @@ export function heuristicSuggestions(text, mode = "paused") {
     /,\s+(?:I\b|(?:he|she|they|we|it|nobody|everyone|somebody|someone|anyone|no\s+one)\s)/i,
     /\b[^.!?\n]{6,},\s+[a-z]+\s+(?:i|you|we|they|he|she|it)\b/i,
   ];
-  if (commaSplicePatterns.some((p) => p.test(text))) {
+  let commaSpliceMatch = null;
+  for (const p of commaSplicePatterns) {
+    const m = p.exec(text);
+    if (m) { commaSpliceMatch = m; break; }
+  }
+  if (commaSpliceMatch) {
+    const idx = commaSpliceMatch.index;
+    const snippetStart = Math.max(0, idx - 25);
+    const snippetEnd = Math.min(text.length, idx + commaSpliceMatch[0].length + 25);
+    const snippet = text.slice(snippetStart, snippetEnd).trim().replace(/\s+/g, " ");
     suggestions.push({
       type: "grammar",
       title: "Possible comma splice",
-      body: "A comma may be joining two or more full thoughts without a conjunction. Try a period, semicolon, or a connector (e.g. *because* / *so* / *and*) to make the structure clear.",
+      body: `Near \u201c\u2026${snippet}\u2026\u201d \u2014 a comma may be joining two or more full thoughts without a conjunction. Try a period, semicolon, or a connector (e.g. *because* / *so* / *and*) to make the structure clear.`,
       micro_edit: null,
     });
   }

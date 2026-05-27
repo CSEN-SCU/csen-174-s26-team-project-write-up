@@ -22,6 +22,109 @@ function hashSuggestion(parts) {
   return Math.abs(hash >>> 0).toString(36);
 }
 
+/**
+ * Returns true when a suggestion card no longer applies to the current draft.
+ *
+ * Strategy by card type:
+ *  - Word-level cards (Spelling, Typo, Apostrophe, Possible split, Unrecognized word,
+ *    Letter extension): the first quoted phrase in the title IS the wrong form —
+ *    hide the card once that exact text is gone from the draft.
+ *  - Multi-word Grammar/Phrase corrections ("should of", "your welcome"): same —
+ *    single-word grammar confusions ("their") are intentionally left alone because
+ *    the word might still appear elsewhere used correctly.
+ *  - Repeated word: re-check the specific word still repeats 4+ times in a row.
+ *  - Structural cards (comma splice, extra spaces, etc.): re-run the lightweight
+ *    pattern inline so the card disappears as soon as the issue is resolved.
+ */
+function isCardStale(s, content) {
+  const titleStr = s.title || "";
+
+  // Repeated-word check needs its own regex rather than a plain word search.
+  if (/^Repeated word:/i.test(titleStr)) {
+    const qm = titleStr.match(/[\u201C"]([^\u201D"]{1,60})[\u201D"]/);
+    if (qm?.[1]) {
+      const esc = qm[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return !new RegExp(`\\b${esc}\\b(?:\\s+\\b${esc}\\b){3,}`, "i").test(content);
+    }
+  }
+
+  // Word-level cards: quoted phrase = the exact wrong token → stale when gone.
+  if (/^(?:Spelling|Typo|Missing apostrophe|Possible split|Unrecognized word|Letter extension|Capitalization):/i.test(titleStr)) {
+    const qm = titleStr.match(/[\u201C"]([^\u201D"]{1,80})[\u201D"]/);
+    if (qm?.[1]) {
+      const esc = qm[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (!new RegExp(`\\b${esc}\\b`, "i").test(content)) return true;
+    }
+  }
+
+  // Multi-word Grammar / Phrase corrections: only check when the quoted segment
+  // contains a space (single-word confusions like "their" might still appear
+  // correctly elsewhere, so we leave those alone).
+  if (/^(?:Grammar|Phrase):/i.test(titleStr)) {
+    const qm = titleStr.match(/[\u201C"]([^\u201D"]{1,60})[\u201D"]/);
+    if (qm?.[1] && /\s/.test(qm[1])) {
+      const esc = qm[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (!new RegExp(esc, "i").test(content)) return true;
+    }
+  }
+
+  // Structural cards — re-run the lightweight pattern.
+  if (/extra spaces/i.test(titleStr)) return !content.includes("  ");
+  if (/comma splice/i.test(titleStr)) {
+    return ![
+      /,\s+(?:I\b|(?:he|she|they|we|it|nobody|everyone|somebody|someone|anyone|no\s+one)\s)/i,
+      /\b[^.!?\n]{6,},\s+[a-z]+\s+(?:i|you|we|they|he|she|it)\b/i,
+    ].some((p) => p.test(content));
+  }
+  if (/repeated punctuation/i.test(titleStr)) return !/[!?]{2,}|\.{4,}/.test(content);
+  if (/question phrasing/i.test(titleStr)) {
+    return !/\b(?:friend|they|she|he)\s+asks?\b(?![^.!?\n]*\?)/gi.test(content);
+  }
+  if (/lowercase.*sentence|sentence.*lowercase/i.test(titleStr)) {
+    return !/[.!?]\s+[a-z]/.test(content);
+  }
+  if (/uncapitalized/i.test(titleStr)) {
+    return !/(?:^|\s)i(?=\s|[',;.!?]|$)/m.test(content);
+  }
+  if (/subject.{0,5}verb agreement/i.test(titleStr)) {
+    return !/\bthere\s+is\s+(?:so\s+)?many\b/i.test(content);
+  }
+  if (/semicolon before conjunction/i.test(titleStr)) {
+    return !/;\s*(?:and|but|or|so|for|nor|yet)\b/i.test(content);
+  }
+  // "Possible run-on sentence" cards: re-check that there is still a
+  // connector-free segment with 2+ subject pronouns.
+  if (/possible run-on/i.test(titleStr)) {
+    const segs = content.split(/[.!?\n]+/).filter((s) => s.trim().length > 0);
+    const stillPresent = segs.some((seg) => {
+      const tr = seg.trim();
+      const wc = tr.split(/\s+/).length;
+      if (wc < 8 || wc > 40) return false;
+      if (/[,;]/.test(tr)) return false;
+      if (/\b(?:and|but|or|so|for|nor|yet|because|although|while|since|if|when|that|which|who|whom|however|therefore|then|though)\b/i.test(tr)) return false;
+      return (tr.match(/\b(?:I|he|she|we|they|you)\b/gi) || []).length >= 2;
+    });
+    return !stillPresent;
+  }
+
+  return false; // default: keep showing
+}
+
+/**
+ * Finds the {start, end} character range of the text a suggestion refers to.
+ * Extracts the first smart-quoted or straight-quoted phrase from the title and
+ * locates it in the current content (case-insensitive).
+ */
+function findHighlightRange(suggestion, content) {
+  const titleStr = suggestion?.title || "";
+  const qm = titleStr.match(/[\u201C"]([^\u201D"]{1,80})[\u201D"]/);
+  if (!qm?.[1]) return null;
+  const phrase = qm[1];
+  const idx = content.toLowerCase().indexOf(phrase.toLowerCase());
+  if (idx === -1) return null;
+  return { start: idx, end: idx + phrase.length };
+}
+
 function suggestionToFeedbackRecord(docId, suggestion, idx) {
   const category = String(suggestion?.type || "").trim().toLowerCase() || "coaching";
   const issue = String(suggestion?.title || "").trim() || "Suggestion";
@@ -54,6 +157,11 @@ export default function Write() {
   const lastSyncedCoachAtRef = useRef(null);
   const [decisionByCardId, setDecisionByCardId] = useState({});
   const [savingDecisionByCardId, setSavingDecisionByCardId] = useState({});
+
+  // Highlight overlay — tracks the character range the hovered card refers to
+  const [activeHighlight, setActiveHighlight] = useState(null);
+  const textareaRef = useRef(null);
+  const highlightLayerRef = useRef(null);
 
   const loadList = useCallback(async () => {
     if (!canFetchDocs) return;
@@ -118,6 +226,20 @@ export default function Write() {
     });
   }, [currentId, lastCoachAt, coachPhase]);
 
+  // When a new highlight range becomes active, scroll the textarea to reveal it.
+  useEffect(() => {
+    if (!activeHighlight || !textareaRef.current) return;
+    const textarea = textareaRef.current;
+    const lineHeight = parseFloat(window.getComputedStyle(textarea).lineHeight) || 24;
+    const newlines = (content.substring(0, activeHighlight.start).match(/\n/g) || []).length;
+    const targetScrollTop = Math.max(0, newlines * lineHeight - textarea.clientHeight / 3);
+    textarea.scrollTop = targetScrollTop;
+    if (highlightLayerRef.current) {
+      highlightLayerRef.current.scrollTop = targetScrollTop;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeHighlight]);
+
   const handleSuggestionDecision = useCallback(
     async (suggestion, idx, decision) => {
       if (!currentId) return;
@@ -129,7 +251,7 @@ export default function Write() {
       // spelling / typo / contraction card that has a micro_edit.
       if (decision === "accepted" && suggestion.micro_edit) {
         const titleStr = suggestion.title || "";
-        const isAutoFixable = /^(?:Spelling|Typo|Missing apostrophe|Phrase|Grammar):/i.test(titleStr);
+        const isAutoFixable = /^(?:Spelling|Typo|Missing apostrophe|Phrase|Grammar|Capitalization):/i.test(titleStr);
         if (isAutoFixable) {
           // Extract the original word/phrase from the quoted portion of the title
           const quotedMatch = titleStr.match(/[\u201C"]([^\u201D"]+)[\u201D"]/);
@@ -316,10 +438,33 @@ export default function Write() {
                   </span>
                 </div>
                 <div className="write-editor-surface">
+                  {/* Highlight layer: mirrors the textarea content so we can
+                      colour-mark the exact span the hovered suggestion refers to. */}
+                  <div
+                    ref={highlightLayerRef}
+                    className="write-editor-highlight-layer"
+                    aria-hidden="true"
+                  >
+                    {activeHighlight ? (
+                      <>
+                        {content.substring(0, activeHighlight.start)}
+                        <mark className="write-highlight-mark">
+                          {content.substring(activeHighlight.start, activeHighlight.end)}
+                        </mark>
+                        {content.substring(activeHighlight.end)}
+                      </>
+                    ) : null}
+                  </div>
                   <textarea
+                    ref={textareaRef}
                     className="write-editor"
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
+                    onScroll={() => {
+                      if (highlightLayerRef.current && textareaRef.current) {
+                        highlightLayerRef.current.scrollTop = textareaRef.current.scrollTop;
+                      }
+                    }}
                     placeholder="Start typing… Quick spelling/grammar checks run while you write; punctuation and flow after a longer pause."
                     spellCheck
                   />
@@ -386,19 +531,18 @@ export default function Write() {
                   // Hide suggestions the user has already declined.
                   if (decision === "declined") return null;
 
-                  // Immediately hide spelling/typo cards whose referenced word is
-                  // no longer present in the draft (e.g. the user deleted it).
-                  if (/^(?:Spelling|Typo|Missing apostrophe):/i.test(s.title || "")) {
-                    const qm = (s.title || "").match(/[\u201C"]([^\u201D"]+)[\u201D"]/);
-                    if (qm?.[1]) {
-                      const escaped = qm[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-                      if (!new RegExp(`\\b${escaped}\\b`, "i").test(content)) return null;
-                    }
-                  }
+                  // Hide cards whose referenced issue is no longer present in the draft.
+                  if (isCardStale(s, content)) return null;
 
                   const saving = Boolean(savingDecisionByCardId[record.cardId]);
+                  const highlightRange = findHighlightRange(s, content);
                   return (
-                    <article key={`${s.title}-${i}`} className="write-card">
+                    <article
+                      key={`${s.title}-${i}`}
+                      className={`write-card${highlightRange ? " write-card--highlightable" : ""}`}
+                      onMouseEnter={() => setActiveHighlight(highlightRange)}
+                      onMouseLeave={() => setActiveHighlight(null)}
+                    >
                       {s.type ? <span className="write-type-tag">{s.type}</span> : null}
                       <h3>{s.title}</h3>
                       <p>{s.body}</p>
