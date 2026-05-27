@@ -1,5 +1,6 @@
 ﻿import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
 import { api } from "../lib/api";
 import { useApi } from "../lib/useApi";
 
@@ -18,6 +19,8 @@ function mapFirestoreRow(raw, idx) {
 }
 
 export default function History() {
+  const { user, sessionReady } = useAuth();
+  const canLoadHistory = Boolean(user && sessionReady);
   const [searchParams] = useSearchParams();
   const rawDocId = searchParams.get("docId");
   const docId = rawDocId && rawDocId.trim() ? rawDocId.trim() : null;
@@ -25,14 +28,18 @@ export default function History() {
   const decisionFilter = activeTab === TAB_CORRECTIONS ? "accepted" : "declined";
 
   const { data, loading, error, retry } = useApi(
-    useCallback(() => api.history(docId, { decision: decisionFilter }), [docId, decisionFilter]),
-    [docId, decisionFilter],
+    useCallback(
+      () => (canLoadHistory ? api.history(docId, { decision: decisionFilter }) : Promise.resolve({ items: [] })),
+      [canLoadHistory, docId, decisionFilter],
+    ),
+    [canLoadHistory, docId, decisionFilter],
   );
 
   const correctionRows = useMemo(() => {
+    if (!canLoadHistory) return [];
     const items = (data && Array.isArray(data.items) && data.items) || [];
     return items.map(mapFirestoreRow);
-  }, [data]);
+  }, [canLoadHistory, data]);
 
   const listForTab = correctionRows;
   const listAriaLabel =
@@ -93,10 +100,15 @@ export default function History() {
           </button>
         </div>
 
-        {activeTab === TAB_CORRECTIONS && error && (
+        {activeTab === TAB_CORRECTIONS && canLoadHistory && error && (
           <p className="history-page__note" role="alert">
             Could not load history ({error.code || error.message}). Set{" "}
             <code>VITE_DEBUG_APP_USER</code> for local app-api bypass, or sign in with Firebase.
+          </p>
+        )}
+        {!canLoadHistory && (
+          <p className="history-page__note" role="alert">
+            Sign in to view your feedback history.
           </p>
         )}
         <p className="history-page__hint">
