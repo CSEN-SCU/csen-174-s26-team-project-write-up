@@ -1,0 +1,93 @@
+"""Persist and fetch per-user feedback history entries in Firestore."""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime, timezone
+
+from flask import Blueprint, g, jsonify, request
+
+from auth import require_auth
+from firebase.init import get_db
+
+bp = Blueprint("feedback_history", __name__)
+
+COLLECTION = "feedback_history"
+MAX_DOC_ID_CHARS = 200
+MAX_CARD_ID_CHARS = 200
+MAX_TEXT_CHARS = 4000
+MAX_FIX_OPTIONS = 8
+
+
+def _trim_text(value: object, limit: int = MAX_TEXT_CHARS) -> str:
+    return str(value or "").strip()[:limit]
+
+
+@bp.post("/feedback-history")
+@require_auth
+def feedback_history_add():
+    body = request.get_json(silent=True) or {}
+
+    doc_id = _trim_text(body.get("docId"), MAX_DOC_ID_CHARS)
+    card_id = _trim_text(body.get("cardId"), MAX_CARD_ID_CHARS)
+    issue = _trim_text(body.get("issue"))
+    why = _trim_text(body.get("why"))
+
+    if not doc_id:
+        return jsonify(ok=False, error="missing_doc_id"), 400
+    if not card_id:
+        return jsonify(ok=False, error="missing_card_id"), 400
+    if not issue and not why:
+        return jsonify(ok=False, error="missing_feedback_fields"), 400
+
+    fix_options_raw = body.get("fixOptions")
+    if fix_options_raw is not None and not isinstance(fix_options_raw, list):
+        return jsonify(ok=False, error="invalid_fix_options"), 400
+
+    now = datetime.now(timezone.utc).isoformat()
+    record_id = f"{g.user_id}_{doc_id}_{card_id}_{uuid.uuid4().hex[:10]}"
+    record: dict = {
+        "id": record_id,
+        "userId": g.user_id,
+        "docId": doc_id,
+        "cardId": card_id,
+        "createdAt": now,
+        "updatedAt": now,
+    }
+
+    if issue:
+        record["issue"] = issue
+    if why:
+        record["why"] = why
+    if body.get("category") is not None:
+        record["category"] = _trim_text(body.get("category"), 120)
+
+    if isinstance(fix_options_raw, list):
+        record["fixOptions"] = [
+            _trim_text(item) for item in fix_options_raw if _trim_text(item)
+        ][:MAX_FIX_OPTIONS]
+
+    try:
+        get_db().collection(COLLECTION).document(record_id).set(record)
+        return jsonify(ok=True, id=record_id), 201
+    except Exception:
+        return jsonify(ok=False, error="internal_error"), 500
+
+
+@bp.get("/feedback-history")
+@require_auth
+def feedback_history_list():
+    doc_id = _trim_text(request.args.get("docId"), MAX_DOC_ID_CHARS)
+    try:
+        query = get_db().collection(COLLECTION).where("userId", "==", g.user_id)
+        if doc_id:
+            query = query.where("docId", "==", doc_id)
+
+        items = []
+        for snap in query.stream():
+            data = snap.to_dict() or {}
+            items.append({"id": data.get("id") or snap.id, **data})
+        items.sort(key=lambda row: str(row.get("createdAt") or ""), reverse=True)
+        return jsonify(items=items), 200
+    except Exception:
+        return jsonify(ok=False, error="internal_error"), 500

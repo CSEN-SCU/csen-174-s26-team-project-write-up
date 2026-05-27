@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { ApiError, api } from "../lib/api";
@@ -11,6 +11,16 @@ import {
 import "./Write.css";
 
 const INTRO_DISMISSED_KEY = "writeup-web-intro-dismissed";
+
+function hashSuggestion(parts) {
+  const text = parts.join("|");
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash >>> 0).toString(36);
+}
 
 export default function Write() {
   const { user, loading: authLoading, sessionReady, signInWithGoogle } = useAuth();
@@ -26,6 +36,7 @@ export default function Write() {
   const [showIntro, setShowIntro] = useState(
     () => localStorage.getItem(INTRO_DISMISSED_KEY) !== "1",
   );
+  const savedFeedbackKeysRef = useRef(new Set());
 
   const loadList = useCallback(async () => {
     if (!canFetchDocs) return;
@@ -63,6 +74,35 @@ export default function Write() {
     content,
     onSave: loadList,
   });
+
+  useEffect(() => {
+    if (!currentId || coachPhase !== "ready" || suggestions.length === 0) return;
+
+    for (let i = 0; i < suggestions.length; i += 1) {
+      const suggestion = suggestions[i] || {};
+      const category = String(suggestion.type || "").trim().toLowerCase() || "coaching";
+      const issue = String(suggestion.title || "").trim() || "Suggestion";
+      const why = String(suggestion.body || "").trim();
+      const micro = String(suggestion.micro_edit || "").trim();
+      const dedupeKey = `${currentId}::${category}::${issue}::${why}::${micro}`;
+      if (savedFeedbackKeysRef.current.has(dedupeKey)) continue;
+      savedFeedbackKeysRef.current.add(dedupeKey);
+
+      const cardId = `web-${hashSuggestion([currentId, category, issue, why, micro, String(i)])}`;
+      const payload = {
+        docId: currentId,
+        cardId,
+        category,
+        issue,
+        why,
+        fixOptions: micro ? [micro] : [],
+      };
+
+      void api.saveFeedback(payload).catch(() => {
+        // Keep write flow responsive; history save can fail independently.
+      });
+    }
+  }, [currentId, coachPhase, suggestions]);
 
   const dismissIntro = useCallback(() => {
     localStorage.setItem(INTRO_DISMISSED_KEY, "1");

@@ -155,10 +155,15 @@ export const api = {
   },
 
   history: (docId, { headers: extraHeaders = {} } = {}) =>
-    apiFetch(`/api/feedback-history?docId=${encodeURIComponent(docId ?? "")}`, {
+    apiFetch(
+      docId
+        ? `/api/feedback-history?docId=${encodeURIComponent(docId)}`
+        : "/api/feedback-history",
+      {
       headers: extraHeaders,
       fallback: { items: [], degraded: true, error: "offline" },
-    }),
+      },
+    ),
 
   /**
    * Proxied by app-api → coaching-api (Chris / swe-test-style live coach).

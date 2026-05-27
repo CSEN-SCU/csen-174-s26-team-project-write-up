@@ -38,7 +38,8 @@ function mapFirestoreRow(raw, idx) {
 
 export default function History() {
   const [searchParams] = useSearchParams();
-  const docId = searchParams.get("docId") || "active";
+  const rawDocId = searchParams.get("docId");
+  const docId = rawDocId && rawDocId.trim() ? rawDocId.trim() : null;
 
   const { data, loading, error, retry } = useApi(
     useCallback(() => api.history(docId), [docId]),
@@ -157,7 +158,11 @@ export default function History() {
                 <p className="history-page__empty">
                   {activeTab === TAB_CORRECTIONS ? (
                     <>
-                      {emptyCorrections ? "No saved suggestions for this document yet." : null}
+                      {emptyCorrections
+                        ? docId
+                          ? "No saved suggestions for this document yet."
+                          : "No saved suggestions for your account yet."
+                        : null}
                     </>
                   ) : (
                     <>

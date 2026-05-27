@@ -16,6 +16,7 @@ load_dotenv(_APP_DIR / ".env")
 from routes.coach_proxy import bp as coach_proxy_bp
 from routes.dismissals import bp as dismissals_bp
 from routes.documents import bp as documents_bp
+from routes.feedback_history import bp as feedback_history_bp
 from routes.onboarding import bp as onboarding_bp
 from routes.preferences import bp as prefs_bp
 from routes.users import bp as users_bp
@@ -67,6 +68,7 @@ app.register_blueprint(users_bp, url_prefix="/api")
 app.register_blueprint(onboarding_bp, url_prefix="/api")
 app.register_blueprint(dismissals_bp, url_prefix="/api")
 app.register_blueprint(prefs_bp, url_prefix="/api")
+app.register_blueprint(feedback_history_bp, url_prefix="/api")
 app.register_blueprint(coach_proxy_bp)
 app.register_blueprint(documents_bp, url_prefix="/api")
 
