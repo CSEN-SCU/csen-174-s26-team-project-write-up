@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { ApiError, api } from "../lib/api";
 import {
@@ -142,8 +141,8 @@ function suggestionToFeedbackRecord(docId, suggestion, idx) {
 
 export default function Write() {
   const { user, loading: authLoading, sessionReady, signInWithGoogle } = useAuth();
-  const canWrite = Boolean(user);
-  const canFetchDocs = canWrite && sessionReady;
+  const [googleError, setGoogleError] = useState(null);
+  const canUseBackend = Boolean(user && sessionReady);
 
   const [documents, setDocuments] = useState([]);
   const [currentId, setCurrentId] = useState(null);
@@ -164,7 +163,7 @@ export default function Write() {
   const highlightLayerRef = useRef(null);
 
   const loadList = useCallback(async () => {
-    if (!canFetchDocs) return;
+    if (!canUseBackend) return;
     setListLoading(true);
     setTopError(null);
     try {
@@ -176,7 +175,7 @@ export default function Write() {
     } finally {
       setListLoading(false);
     }
-  }, [canFetchDocs]);
+  }, [canUseBackend]);
 
   useEffect(() => {
     void loadList();
@@ -194,7 +193,7 @@ export default function Write() {
     markSaved,
     bumpCoachGeneration,
   } = useLiveCoach({
-    enabled: canWrite,
+    enabled: canUseBackend,
     currentId,
     title,
     content,
@@ -218,13 +217,13 @@ export default function Write() {
   }, [currentId]);
 
   useEffect(() => {
-    if (!currentId || !lastCoachAt || coachPhase !== "ready") return;
+    if (!canUseBackend || !currentId || !lastCoachAt || coachPhase !== "ready") return;
     if (lastSyncedCoachAtRef.current === lastCoachAt) return;
     lastSyncedCoachAtRef.current = lastCoachAt;
     void api.markCoachSession().catch(() => {
       // Profile snapshot updates are best-effort; do not block writing flow.
     });
-  }, [currentId, lastCoachAt, coachPhase]);
+  }, [canUseBackend, currentId, lastCoachAt, coachPhase]);
 
   // When a new highlight range becomes active, scroll the textarea to reveal it.
   useEffect(() => {
@@ -242,7 +241,7 @@ export default function Write() {
 
   const handleSuggestionDecision = useCallback(
     async (suggestion, idx, decision) => {
-      if (!currentId) return;
+      if (!canUseBackend || !currentId) return;
       const record = suggestionToFeedbackRecord(currentId, suggestion, idx);
       if (savingDecisionByCardId[record.cardId]) return;
       if (decisionByCardId[record.cardId] === decision) return;
@@ -280,7 +279,7 @@ export default function Write() {
         setSavingDecisionByCardId((prev) => ({ ...prev, [record.cardId]: false }));
       }
     },
-    [currentId, decisionByCardId, savingDecisionByCardId],
+    [canUseBackend, currentId, decisionByCardId, savingDecisionByCardId],
   );
 
   const dismissIntro = useCallback(() => {
@@ -290,6 +289,7 @@ export default function Write() {
 
   const openDocument = useCallback(
     async (id) => {
+      if (!canUseBackend) return;
       setTopError(null);
       bumpCoachGeneration();
       try {
@@ -305,10 +305,11 @@ export default function Write() {
         setTopError("Could not open that document.");
       }
     },
-    [bumpCoachGeneration, markSaved, resetCoachState],
+    [canUseBackend, bumpCoachGeneration, markSaved, resetCoachState],
   );
 
   const createDocument = useCallback(async () => {
+    if (!canUseBackend) return;
     setTopError(null);
     try {
       const doc = await api.documents.create("Untitled");
@@ -317,37 +318,74 @@ export default function Write() {
     } catch {
       setTopError("Could not create a document.");
     }
-  }, [loadList, openDocument]);
+  }, [canUseBackend, loadList, openDocument]);
+
+  async function handleGoogleSignIn() {
+    setGoogleError(null);
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      const code = e?.code || (e instanceof Error ? e.message : "sign_in_failed");
+      setGoogleError(code);
+    }
+  }
 
   const onSelectDoc = (id) => {
     if (id === currentId) return;
     void openDocument(id);
   };
 
-  if (authLoading || (canWrite && !sessionReady)) {
+  if (authLoading) {
     return (
-      <section className="page write-page">
-        <p className="write-muted">{authLoading ? "Checking sign-in…" : "Restoring your session…"}</p>
+      <section className="page profile-page">
+        <div className="dashboard__inner dashboard__inner--wide">
+          <p className="profile-page__lede">Checking session…</p>
+        </div>
       </section>
     );
   }
 
-  if (!canWrite) {
+  if (!user) {
     return (
-      <section className="page write-page write-page--gate">
-        <h2 className="write-brand">
-          Write <span>Up</span> editor
-        </h2>
-        <p className="write-muted">
-          Sign in with Google so your drafts and coaching profile stay on your account. Coaching runs through app-api
-          and coaching-api (same stack as the extension).
-        </p>
-        <button type="button" className="write-btn write-btn--primary" onClick={() => signInWithGoogle()}>
-          Sign in with Google
-        </button>
-        <Link className="write-link" to="/">
-          Back to dashboard
-        </Link>
+      <section className="page profile-page">
+        <div className="dashboard__inner dashboard__inner--wide">
+          <div className="profile-page__sign-in-shell">
+            <header className="profile-page__sign-header">
+              <p className="dashboard__eyebrow">Your writing workspace</p>
+              <h2 className="profile-page__title">Write</h2>
+              <p className="profile-page__lede">
+                Sign in with Google to save drafts to your account and use live coaching.
+              </p>
+            </header>
+
+            <div className="profile-page__sign-card">
+              <h3 className="profile-page__card-title">Sign in</h3>
+              <button
+                type="button"
+                className="profile-page__submit dashboard__btn dashboard__btn--primary"
+                onClick={handleGoogleSignIn}
+              >
+                Sign in with Google
+              </button>
+              <p className="profile-page__hint">You can also use Sign in in the top bar.</p>
+              {googleError && (
+                <p className="profile-page__hint" role="alert">
+                  {googleError}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (!sessionReady) {
+    return (
+      <section className="page profile-page">
+        <div className="dashboard__inner dashboard__inner--wide">
+          <p className="profile-page__lede">Restoring your session…</p>
+        </div>
       </section>
     );
   }

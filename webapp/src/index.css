@@ -2,9 +2,9 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; font-family: var(--font-body); background: var(--color-paper); color: var(--color-ink); }
-.topbar { display: grid; grid-template-columns: minmax(140px, 1fr) auto; align-items: center; column-gap: 24px; padding: 12px 16px; border-bottom: 1px solid var(--color-rule); background: linear-gradient(90deg, rgba(127, 193, 193, 0.18), rgba(251, 254, 255, 0.95) 42%, rgba(138, 99, 146, 0.16)); }
-.topbar h1 { justify-self: center; margin: 0; color: var(--color-plum); }
-.topbar nav { display: flex; justify-self: end; gap: 12px; flex-wrap: wrap; align-items: center; }
+.topbar { display: flex; grid-template-columns: minmax(140px, 1fr) auto; align-items: center; column-gap: 24px; padding: 12px 16px; border-bottom: 1px solid var(--color-rule); background: linear-gradient(90deg, rgba(127, 193, 193, 0.18), rgba(251, 254, 255, 0.95) 42%, rgba(138, 99, 146, 0.16)); }
+.topbar h1 { justify-self: left; margin: 0; color: var(--color-plum); }
+.topbar nav { display: flex; justify-self: right; gap: 15px; flex-wrap: wrap; align-items: center; margin-left: auto;}
 .topbar a { color: var(--color-ink); text-decoration: none; font-weight: 600; }
 .topbar a:hover { color: var(--color-plum); }
 .topbar-auth-cluster { display: inline-flex; align-items: center; gap: 8px; margin-left: 4px; }
@@ -20,6 +20,8 @@ body { margin: 0; font-family: var(--font-body); background: var(--color-paper);
   background: var(--color-surface);
   color: var(--color-ink);
 }
+
+
 .topbar-auth-btn--ghost {
   background: transparent;
 }

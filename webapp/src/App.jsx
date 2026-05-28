@@ -6,6 +6,7 @@ import Profile from "./pages/Profile";
 import ExtensionAuth from "./pages/ExtensionAuth";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Write from "./pages/Write";
+import logo from '../logo.png';
 
 function TopbarAuth() {
   const { user, loading, serverProfile, signInWithGoogle, signOut } = useAuth();
@@ -50,11 +51,11 @@ function TopbarAuth() {
 function TopNav() {
   const { user } = useAuth();
   return (
-    <nav>
+    <nav class="topnavbar">
       <Link to="/">Home</Link>
       <Link to="/write">Write</Link>
       <Link to="/history">History</Link>
-      {user ? <Link to="/profile">Profile</Link> : null}
+      <Link to="/profile">Profile</Link>
       <Link to="/privacy">Privacy</Link>
       <TopbarAuth />
     </nav>
@@ -66,6 +67,7 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <header className="topbar">
+          <img src={logo} alt="WriteUp Logo"/>
           <h1>Write Up</h1>
           <TopNav />
         </header>

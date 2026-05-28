@@ -19,7 +19,8 @@ function mapFirestoreRow(raw, idx) {
 }
 
 export default function History() {
-  const { user, sessionReady } = useAuth();
+  const { user, loading: authLoading, sessionReady, signInWithGoogle } = useAuth();
+  const [googleError, setGoogleError] = useState(null);
   const canLoadHistory = Boolean(user && sessionReady);
   const [searchParams] = useSearchParams();
   const rawDocId = searchParams.get("docId");
@@ -48,6 +49,61 @@ export default function History() {
     activeTab === TAB_CORRECTIONS ? "history-tab-corrections" : "history-tab-leave";
 
   const emptyCorrections = activeTab === TAB_CORRECTIONS && correctionRows.length === 0 && !loading;
+
+  async function handleGoogleSignIn() {
+    setGoogleError(null);
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      const code = e?.code || (e instanceof Error ? e.message : "sign_in_failed");
+      setGoogleError(code);
+    }
+  }
+
+  if (authLoading) {
+    return (
+      <section className="page profile-page">
+        <div className="dashboard__inner dashboard__inner--wide">
+          <p className="profile-page__lede">Checking session…</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (!user) {
+    return (
+      <section className="page profile-page">
+        <div className="dashboard__inner dashboard__inner--wide">
+          <div className="profile-page__sign-in-shell">
+            <header className="profile-page__sign-header">
+              <p className="dashboard__eyebrow">Your account</p>
+              <h2 className="profile-page__title">History</h2>
+              <p className="profile-page__lede">
+                Sign in with Google to sync your Write Up hisstory to the server and see your saved writing history details here.
+              </p>
+            </header>
+
+            <div className="profile-page__sign-card">
+              <h3 className="profile-page__card-title">Sign in</h3>
+              <button
+                type="button"
+                className="profile-page__submit dashboard__btn dashboard__btn--primary"
+                onClick={handleGoogleSignIn}
+              >
+                Sign in with Google
+              </button>
+              <p className="profile-page__hint">You can also use Sign in in the top bar.</p>
+              {googleError && (
+                <p className="profile-page__hint" role="alert">
+                  {googleError}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="page history-page">
@@ -102,18 +158,18 @@ export default function History() {
 
         {activeTab === TAB_CORRECTIONS && canLoadHistory && error && (
           <p className="history-page__note" role="alert">
-            Could not load history ({error.code || error.message}). Set{" "}
-            <code>VITE_DEBUG_APP_USER</code> for local app-api bypass, or sign in with Firebase.
+            Could not load history ({error.code || error.message}). Set <code>VITE_DEBUG_APP_USER</code> for local
+            app-api bypass, or sign in with Firebase.
           </p>
         )}
         {!canLoadHistory && (
           <p className="history-page__note" role="alert">
-            Sign in to view your feedback history.
+            Syncing your session…
           </p>
         )}
         <p className="history-page__hint">
-          <strong>Correction history</strong> lists suggestions you accepted.{" "}
-          <strong>Leave as written</strong> lists suggestions you declined.
+          <strong>Correction history</strong> lists suggestions you accepted. <strong>Leave as written</strong> lists
+          suggestions you declined.
         </p>
 
         <div id="history-tabpanel" role="tabpanel" aria-labelledby={tabPanelLabelledBy}>
@@ -141,11 +197,7 @@ export default function History() {
                 </p>
               ) : (
                 listForTab.map((item) => (
-                  <div
-                    key={item.id}
-                    className="history-page__item history-page__split"
-                    role="listitem"
-                  >
+                  <div key={item.id} className="history-page__item history-page__split" role="listitem">
                     <div className="history-page__correction">
                       <span className="history-page__col-label">
                         {activeTab === TAB_CORRECTIONS ? "Suggestion / fix" : "Suggested change"}
