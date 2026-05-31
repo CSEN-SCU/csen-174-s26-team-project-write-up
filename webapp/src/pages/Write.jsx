@@ -31,7 +31,7 @@ function hashSuggestion(parts) {
  *  - Multi-word Grammar/Phrase corrections ("should of", "your welcome"): same —
  *    single-word grammar confusions ("their") are intentionally left alone because
  *    the word might still appear elsewhere used correctly.
- *  - Repeated word: re-check the specific word still repeats 4+ times in a row.
+ *  - Repeated word: re-check the specific word still appears back-to-back (2+ times).
  *  - Structural cards (comma splice, extra spaces, etc.): re-run the lightweight
  *    pattern inline so the card disappears as soon as the issue is resolved.
  */
@@ -43,7 +43,7 @@ function isCardStale(s, content) {
     const qm = titleStr.match(/[\u201C"]([^\u201D"]{1,60})[\u201D"]/);
     if (qm?.[1]) {
       const esc = qm[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      return !new RegExp(`\\b${esc}\\b(?:\\s+\\b${esc}\\b){3,}`, "i").test(content);
+      return !new RegExp(`\\b${esc}\\b(?:\\s+\\b${esc}\\b){1,}`, "i").test(content);
     }
   }
 
@@ -79,29 +79,101 @@ function isCardStale(s, content) {
   if (/question phrasing/i.test(titleStr)) {
     return !/\b(?:friend|they|she|he)\s+asks?\b(?![^.!?\n]*\?)/gi.test(content);
   }
-  if (/lowercase.*sentence|sentence.*lowercase/i.test(titleStr)) {
+  if (/lowercase letter after sentence/i.test(titleStr)) {
+    const qm = titleStr.match(/[\u201C"]([^\u201D"]{1,80})[\u201D"]/);
+    if (qm?.[1]) {
+      // New format: stale when this specific word no longer follows terminal punctuation.
+      const esc = qm[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return !new RegExp(`[.!?]\\s+${esc}\\b`, "i").test(content);
+    }
     return !/[.!?]\s+[a-z]/.test(content);
   }
   if (/uncapitalized/i.test(titleStr)) {
     return !/(?:^|\s)i(?=\s|[',;.!?]|$)/m.test(content);
   }
   if (/subject.{0,5}verb agreement/i.test(titleStr)) {
+    // Re-run whichever agreement pattern this card matched.
+    if (/plural pronoun/i.test(titleStr))
+      return !/\b(?:they|we|you)\s+(?:was|is)\b/i.test(content);
+    if (/singular subject/i.test(titleStr))
+      return !/\b(?:it|he|she|everyone|someone|anyone|nobody|nothing|everything)\s+are\b/i.test(content) &&
+             !/\b(?:this|that)\s+(?:\w+\s+)?are\b/i.test(content);
+    if (/plural subject/i.test(titleStr))
+      return !/\b(?:[a-z]+nts|[a-z]+nds|[a-z]+cts|[a-z]+rds|[a-z]+lts)\s+was\b/i.test(content);
+    // Fallback: original "there is many" check
     return !/\bthere\s+is\s+(?:so\s+)?many\b/i.test(content);
   }
-  if (/semicolon before conjunction/i.test(titleStr)) {
-    return !/;\s*(?:and|but|or|so|for|nor|yet)\b/i.test(content);
+  if (/^Missing apostrophe:/i.test(titleStr)) {
+    // Stale when the exact unformatted contraction is gone from the draft.
+    const qm = titleStr.match(/[\u201C"]([^\u201D"]{1,30})[\u201D"]/);
+    if (qm?.[1]) {
+      const esc = qm[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return !new RegExp(`\\b${esc}\\b`, "i").test(content);
+    }
   }
-  // "Possible run-on sentence" cards: re-check that there is still a
-  // connector-free segment with 2+ subject pronouns.
+  // Snippet-titled punctuation cards: stale once the specific quoted snippet
+  // is gone from the draft (each occurrence gets its own card now).
+  if (/semicolon before conjunction/i.test(titleStr) ||
+      /semicolon after subordinate clause/i.test(titleStr) ||
+      /missing comma after introductory clause/i.test(titleStr)) {
+    const qm = titleStr.match(/[\u201C"]([^\u201D"]{3,})[\u201D"]/);
+    if (qm?.[1]) {
+      const esc = qm[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return !new RegExp(esc, "i").test(content);
+    }
+    return false;
+  }
+  // its/it's, your/you're, were/we're confusion cards: stale once the
+  // quoted error phrase is no longer present in the draft.
+  if (/apostrophe confusion/i.test(titleStr)) {
+    const qm = titleStr.match(/[\u201C"]([^\u201D"]{2,40})[\u201D"]/);
+    if (qm?.[1]) {
+      const esc = qm[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return !new RegExp(`\\b${esc}\\b`, "i").test(content);
+    }
+    return false;
+  }
+  if (/word confusion.*sentence start/i.test(titleStr)) {
+    return !/(?:^|[.!?\n]\s*)[Ww]ere\s+[a-z]+ing\b/.test(content);
+  }
+  if (/stretched word/i.test(titleStr)) {
+    const qm = titleStr.match(/[\u201C"]([^\u201D"]{2,30})[\u201D"]/);
+    if (qm?.[1]) {
+      const esc = qm[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return !new RegExp(`\\b${esc}\\b`, "i").test(content);
+    }
+    return false;
+  }
+  // Missing-word cards: stale once the quoted erroneous phrase is gone.
+  if (/missing preposition|missing auxiliary|missing words|missing comparative/i.test(titleStr)) {
+    const qm = titleStr.match(/[\u201C"]([^\u201D"]{2,50})[\u201D"]/);
+    if (qm?.[1]) {
+      const esc = qm[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return !new RegExp(esc, "i").test(content);
+    }
+    return false;
+  }
+  // "Possible run-on sentence: …" cards — stale when the specific snippet in
+  // the title is gone, OR when no run-on segments remain using the same logic
+  // as the backend (pronoun/conjunction ratio + verb-subject adjacency).
   if (/possible run-on/i.test(titleStr)) {
+    // First check: if the card has a quoted snippet, verify it's still in the draft.
+    const snippetMatch = titleStr.match(/[\u201C"]([^\u201D"]{3,})[\u201D"]/);
+    if (snippetMatch?.[1]) {
+      const esc = snippetMatch[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (!new RegExp(esc, "i").test(content)) return true;
+    }
+    // Second check: re-run the same detection logic as the backend.
     const segs = content.split(/[.!?\n]+/).filter((s) => s.trim().length > 0);
     const stillPresent = segs.some((seg) => {
       const tr = seg.trim();
       const wc = tr.split(/\s+/).length;
-      if (wc < 8 || wc > 40) return false;
+      if (wc < 8 || wc > 45) return false;
       if (/[,;]/.test(tr)) return false;
-      if (/\b(?:and|but|or|so|for|nor|yet|because|although|while|since|if|when|that|which|who|whom|however|therefore|then|though)\b/i.test(tr)) return false;
-      return (tr.match(/\b(?:I|he|she|we|they|you)\b/gi) || []).length >= 2;
+      const conjCount = (tr.match(/\b(?:and|but|or|so|nor|yet|because|although|while|since|if|when|that|which|who|whom|however|therefore|though)\b/gi) || []).length;
+      const pronounHits = (tr.match(/\b(?:I|he|she|we|they|you|it|nobody|everyone|someone|anyone)\b/gi) || []);
+      if (pronounHits.length >= Math.max(2, conjCount + 2)) return true;
+      return /\b(?:[a-z]+ed|went|came|got|told|saw|heard|felt|knew|left|ran|fell|sat|stood|woke|found|lost|won|brought|caught|stopped|ended|finished|started)\s+(?:I|he|she|we|they|you|it|nobody|everyone|someone)\b/i.test(tr);
     });
     return !stillPresent;
   }
@@ -111,14 +183,42 @@ function isCardStale(s, content) {
 
 /**
  * Finds the {start, end} character range of the text a suggestion refers to.
- * Extracts the first smart-quoted or straight-quoted phrase from the title and
- * locates it in the current content (case-insensitive).
+ *
+ * Most cards: extract the first smart-quoted phrase from the title and locate
+ * it with a plain case-insensitive search.
+ *
+ * Special cases where a plain search would land on the wrong occurrence:
+ *  - "Lowercase letter after sentence end: …" — the word must be preceded by
+ *    terminal punctuation so we skip correctly-capitalized earlier occurrences.
+ *  - "Uncapitalized "I"" — must find standalone lowercase "i", not the
+ *    correctly-capitalised pronoun that appears everywhere else.
  */
 function findHighlightRange(suggestion, content) {
   const titleStr = suggestion?.title || "";
   const qm = titleStr.match(/[\u201C"]([^\u201D"]{1,80})[\u201D"]/);
   if (!qm?.[1]) return null;
   const phrase = qm[1];
+
+  // "Lowercase letter after sentence end: "word"" — anchor after [.!?].
+  // No case-insensitive flag: the phrase is already lowercase, and we must NOT
+  // match the correctly-capitalised form that appears earlier in the text.
+  if (/^Lowercase letter after sentence end/i.test(titleStr)) {
+    const esc = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const m = new RegExp(`[.!?]\\s+(${esc})\\b`).exec(content);
+    if (!m) return null;
+    const start = m.index + m[0].length - m[1].length;
+    return { start, end: start + phrase.length };
+  }
+
+  // "Uncapitalized "I"" — find standalone lowercase i, not the correct form
+  if (/^Uncapitalized/i.test(titleStr)) {
+    const m = /(?:^|[ \t\n])(i)(?=[ \t\n',;.!?]|$)/m.exec(content);
+    if (!m) return null;
+    const start = m.index + m[0].length - 1;
+    return { start, end: start + 1 };
+  }
+
+  // Default: first case-insensitive occurrence
   const idx = content.toLowerCase().indexOf(phrase.toLowerCase());
   if (idx === -1) return null;
   return { start: idx, end: idx + phrase.length };

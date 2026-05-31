@@ -86,7 +86,7 @@ export const PHRASE_RULES = [
     pattern: /\byour\s+welcome\b/i,
     type: "grammar",
     title: "Phrase: \u201cyour welcome\u201d",
-    body: "For \u201cyou are welcome,\u201d use the contraction **you\u2019re** (not the possessive *your*).",
+    body: "Use the contraction **you're** (*you are welcome*) rather than the possessive **your**.",
     micro_edit: "You're welcome",
   },
   // Subject–verb agreement: "there is + plural quantifier"
@@ -95,6 +95,121 @@ export const PHRASE_RULES = [
     type: "grammar",
     title: "Subject\u2013verb agreement",
     body: "**Many** is plural, so standard English uses **there are** (not *there is*).",
+    micro_edit: null,
+  },
+
+  // ── Subject–verb agreement ────────────────────────────────────────────────
+  // Plural pronouns paired with a singular verb
+  {
+    pattern: /\b(?:they|we|you)\s+(?:was|is)\b/i,
+    type: "grammar",
+    title: "Subject\u2013verb agreement: plural pronoun with singular verb",
+    body: "**They**, **we**, and **you** take plural verbs: **were** (past) or **are** (present).",
+    micro_edit: null,
+  },
+  // Singular pronouns / indefinites directly before "are"
+  {
+    pattern: /\b(?:it|he|she|everyone|someone|anyone|nobody|nothing|everything)\s+are\b/i,
+    type: "grammar",
+    title: "Subject\u2013verb agreement: singular subject with \u201care\u201d",
+    body: "This subject is singular\u2014use **is** instead of **are**.",
+    micro_edit: null,
+  },
+  // "this/that + [optional noun phrase] + are" — the subject and verb may be
+  // separated by a noun (e.g. "This sentence are incorrect").
+  {
+    pattern: /\b(?:this|that)\s+(?:\w+\s+)?are\b/i,
+    type: "grammar",
+    title: "Subject\u2013verb agreement: singular subject with \u201care\u201d",
+    body: "**This** and **that** are singular determiners\u2014use **is** instead of **are**.",
+    micro_edit: null,
+  },
+  // Plural nouns (words ending in common unambiguous plural suffixes) + "was"
+  // Suffixes: -nts (students, parents), -nds (friends, hands), -cts (objects),
+  //           -rds (words, birds), -lts (adults, results)
+  // Written as explicit suffix alternatives so the regex engine backtracks
+  // reliably on each branch without ambiguity.
+  {
+    pattern: /\b(?:[a-z]+nts|[a-z]+nds|[a-z]+cts|[a-z]+rds|[a-z]+lts)\s+was\b/i,
+    type: "grammar",
+    title: "Subject\u2013verb agreement: plural subject with \u201cwas\u201d",
+    body: "A plural subject takes **were**, not **was**. Try: the students *were* excited.",
+    micro_edit: null,
+  },
+
+  // ── Common contractions missing their apostrophe ──────────────────────────
+  // Belt-and-suspenders over the dictionary apostrophe-insertion detector:
+  // nspell may not rank the apostrophe form first for 4-letter tokens
+  // (e.g. "dont" → suggests "done" before "don't"), silently dropping the card.
+  { pattern: /\bdont\b/i,     type: "grammar", title: "Missing apostrophe: \u201cdont\u201d",     body: "Standard contraction is **don\u2019t** (*do not*).",      micro_edit: "don't"     },
+  { pattern: /\bdidnt\b/i,    type: "grammar", title: "Missing apostrophe: \u201cdidnt\u201d",    body: "Standard contraction is **didn\u2019t** (*did not*).",    micro_edit: "didn't"    },
+  { pattern: /\bisnt\b/i,     type: "grammar", title: "Missing apostrophe: \u201cisnt\u201d",     body: "Standard contraction is **isn\u2019t** (*is not*).",      micro_edit: "isn't"     },
+  { pattern: /\bwasnt\b/i,    type: "grammar", title: "Missing apostrophe: \u201cwasnt\u201d",    body: "Standard contraction is **wasn\u2019t** (*was not*).",    micro_edit: "wasn't"    },
+  { pattern: /\barent\b/i,    type: "grammar", title: "Missing apostrophe: \u201carent\u201d",    body: "Standard contraction is **aren\u2019t** (*are not*).",    micro_edit: "aren't"    },
+  { pattern: /\bwerent\b/i,   type: "grammar", title: "Missing apostrophe: \u201cwerent\u201d",   body: "Standard contraction is **weren\u2019t** (*were not*).",  micro_edit: "weren't"   },
+  { pattern: /\bhasnt\b/i,    type: "grammar", title: "Missing apostrophe: \u201chasnt\u201d",    body: "Standard contraction is **hasn\u2019t** (*has not*).",    micro_edit: "hasn't"    },
+  { pattern: /\bhavent\b/i,   type: "grammar", title: "Missing apostrophe: \u201chavent\u201d",   body: "Standard contraction is **haven\u2019t** (*have not*).",  micro_edit: "haven't"   },
+  { pattern: /\bwouldnt\b/i,  type: "grammar", title: "Missing apostrophe: \u201cwouldnt\u201d",  body: "Standard contraction is **wouldn\u2019t** (*would not*).", micro_edit: "wouldn't"  },
+  { pattern: /\bcouldnt\b/i,  type: "grammar", title: "Missing apostrophe: \u201ccouldnt\u201d",  body: "Standard contraction is **couldn\u2019t** (*could not*).", micro_edit: "couldn't"  },
+  { pattern: /\bshouldnt\b/i, type: "grammar", title: "Missing apostrophe: \u201cshouldnt\u201d", body: "Standard contraction is **shouldn\u2019t** (*should not*).", micro_edit: "shouldn't" },
+  { pattern: /\bdoesnt\b/i,   type: "grammar", title: "Missing apostrophe: \u201cdoesnt\u201d",   body: "Standard contraction is **doesn\u2019t** (*does not*).",  micro_edit: "doesn't"   },
+  { pattern: /\bhadnt\b/i,    type: "grammar", title: "Missing apostrophe: \u201chadnt\u201d",    body: "Standard contraction is **hadn\u2019t** (*had not*).",    micro_edit: "hadn't"    },
+  { pattern: /\bwont\b(?=\s+(?:be\b|have\b|do\b|let\b|stop\b|go\b|give\b|come\b|make\b|take\b|say\b))/i, type: "grammar", title: "Missing apostrophe: \u201cwont\u201d", body: "In this context the intended word is likely **won\u2019t** (*will not*). (Note: \u201cwont\u201d without an apostrophe is a different word meaning \u201chabitual custom.\u201d)", micro_edit: "won't" },
+
+  // ── its / it's confusion ──────────────────────────────────────────────────
+  // "its been" → "it's been"  (its = possessive, it's = contraction of it is/has)
+  {
+    pattern: /\bits\s+been\b/i,
+    type: "grammar",
+    title: "Apostrophe confusion: \u201cits been\u201d",
+    body: "**Its** is the possessive pronoun (no apostrophe). **It\u2019s** is the contraction of *it is* or *it has*. Here the contraction is needed: **it\u2019s been**.",
+    micro_edit: "it's been",
+  },
+  // "it's own" → "its own"  (it's = contraction, its = possessive)
+  {
+    pattern: /\bit's\s+own\b/i,
+    type: "grammar",
+    title: "Apostrophe confusion: \u201cit\u2019s own\u201d",
+    body: "**It\u2019s** is a contraction (*it is* / *it has*). For possession, drop the apostrophe: **its own**.",
+    micro_edit: "its own",
+  },
+  // "it's" right after a past-tense transitive verb → possessive "its" needed.
+  // Excludes verbs commonly used in reporting speech ("noticed it's fine") where
+  // "it's [predicate]" = "it is [predicate]" can be valid.
+  {
+    pattern: /\b(?:changed|updated|modified|altered|replaced|revised|improved|increased|reduced|published|released|launched|introduced|implemented|applied|maintained|enhanced|established|created|built|designed|developed|removed|deleted|expanded|completed|controlled|managed|determined|influenced|structured|organized|formatted|labeled|named|defined|combined|merged|split|converted|transformed)\s+it's\b/i,
+    type: "grammar",
+    title: "Apostrophe confusion: \u201cit\u2019s\u201d as possessive",
+    body: "**It\u2019s** is a contraction (*it is* / *it has*). After a transitive verb like this, possession is intended\u2014use **its** (no apostrophe).",
+    micro_edit: null,
+  },
+
+  // ── your / you're confusion ───────────────────────────────────────────────
+  // "your going [to]" → "you're going"
+  {
+    pattern: /\byour\s+going\b/i,
+    type: "grammar",
+    title: "Apostrophe confusion: \u201cyour going\u201d",
+    body: "**Your** is possessive (*your bag*). Here the contraction **you\u2019re** (*you are*) is needed: **you\u2019re going**.",
+    micro_edit: null,
+  },
+  // "your being" → "you're being"
+  {
+    pattern: /\byour\s+being\b/i,
+    type: "grammar",
+    title: "Apostrophe confusion: \u201cyour being\u201d",
+    body: "**Your** is possessive; **you\u2019re** (*you are*) is the contraction. Try: **you\u2019re being**.",
+    micro_edit: null,
+  },
+
+  // ── were / we're confusion ────────────────────────────────────────────────
+  // "Were planning..." at the start of a sentence → "We're planning..."
+  // The (?:^|...) branch anchors to a sentence start so "They were planning" is safe.
+  {
+    pattern: /(?:^|[.!?\n]\s*)[Ww]ere\s+[a-z]+ing\b/,
+    type: "grammar",
+    title: "Word confusion: \u201cwere\u201d at sentence start",
+    body: "**Were** is the past tense of *to be* (e.g., *they were planning*). At the start of a sentence without an explicit subject, the likely intended word is the contraction **we\u2019re** (*we are*).",
     micro_edit: null,
   },
 ];
@@ -264,6 +379,11 @@ export function spellDictionarySuggestions(text, opts = {}) {
     // Check SPELLING_OVERRIDES coverage — skip if already emitted above.
     if (SPELLING_OVERRIDES.some((r) => r.pattern.test(raw))) continue;
 
+    // Stretched/elongated words (3+ consecutive same letter, e.g. "sooooo",
+    // "weirddd") are handled by the dedicated stretched-word check below.
+    // Skip them here so only ONE card is generated per word.
+    if (/([a-z])\1{2}/i.test(lw)) continue;
+
     if (spell.correct(lw)) continue;
 
     // Detect compound-word fusing before falling through to dictionary suggestions.
@@ -353,44 +473,71 @@ export function obviousSpellingGrammarHeuristics(text) {
 
   // ── Algorithmic checks (generalise to any input) ───────────────────────────
 
-  // Repeated-word nonsense: "words words words words"
-  const repeatedWord = t.match(/\b(\w{3,})\b(?:\s+\1\b){3,}/i);
-  if (repeatedWord) {
+  // Repeated-word: catches 2+ consecutive identical words (e.g. "very very", "quickly quickly", "has has").
+  // Uses matchAll so every unique duplicated word gets its own card, not just the first one found.
+  const seenRepeated = new Set();
+  for (const m of t.matchAll(/\b(\w{2,})\b(?:\s+\1\b){1,}/gi)) {
+    const word = m[1].toLowerCase();
+    if (seenRepeated.has(word)) continue;
+    seenRepeated.add(word);
     add({
       type: "clarity",
-      title: `Repeated word: \u201c${repeatedWord[1]}\u201d`,
-      body: `\u201c${repeatedWord[1]}\u201d appears many times in a row. This reads as placeholder or test text rather than intended content.`,
+      title: `Repeated word: \u201c${m[1]}\u201d`,
+      body: `\u201c${m[1]}\u201d appears back-to-back. This is likely an accidental duplication\u2014delete the extra copy.`,
+      micro_edit: m[1],
+    });
+  }
+
+  // Stretched / elongated words — same letter repeated 3+ times in a row.
+  // nspell's top suggestion for e.g. "weirddd" is unpredictable (may be
+  // "weirdo" rather than "weird"), so we add a dedicated pass here.
+  // Cap at 3 cards per pass to avoid flooding the panel.
+  const seenStretched = new Set();
+  for (const m of t.matchAll(/\b([a-z]{4,})\b/gi)) {
+    const w = m[1];
+    if (!/([a-z])\1{2}/i.test(w)) continue;   // need 3+ consecutive same letter
+    const lw = w.toLowerCase();
+    if (seenStretched.has(lw)) continue;
+    seenStretched.add(lw);
+    add({
+      type: "clarity",
+      title: `Stretched word: \u201c${w}\u201d`,
+      body: `Repeating a letter for emphasis (*${w}*) is a spoken-language cue. In written form it may not land as intended\u2014consider italics, an em dash, or a stronger word.`,
       micro_edit: null,
     });
   }
 
-  // Sentence-start capitalization
-  if (/[.!?]\s+[a-z]/.test(t)) {
+  // Sentence-start capitalization — one card per unique lowercase word so
+  // every instance is individually visible and highlightable.
+  const seenLowerStart = new Set();
+  for (const m of t.matchAll(/[.!?]\s+([a-z]\w*)/g)) {
+    const word = m[1];
+    if (seenLowerStart.has(word)) continue;
+    seenLowerStart.add(word);
     add({
       type: "grammar",
-      title: "Lowercase letter after sentence end",
-      body: "Each new sentence should begin with a capital letter. A lowercase letter was found after a period, question mark, or exclamation mark.",
-      micro_edit: null,
+      title: `Lowercase letter after sentence end: \u201c${word}\u201d`,
+      body: `\u201c${word}\u201d starts a new sentence but isn\u2019t capitalized. Each sentence should begin with a capital letter.`,
+      micro_edit: word.charAt(0).toUpperCase() + word.slice(1),
     });
   }
 
-  // Uncapitalized first-person pronoun
-  if (/(?:^|\s)i(?=\s|[',;.!?]|$)/m.test(t)) {
+  // Uncapitalized first-person pronoun — mid-sentence occurrences only.
+  // Instances that directly follow [.!?] whitespace are already reported as
+  // "Lowercase letter after sentence end" cards; emitting both for the same
+  // character produces duplicate cards about the same issue.
+  const uncapIMatches = [...t.matchAll(/(?:^|\s)(i)(?=\s|[',;.!?]|$)/gm)];
+  const hasMidSentenceI = uncapIMatches.some((m) => {
+    const iPos = m.index + m[0].indexOf("i");
+    const before = t.slice(0, iPos);
+    // Exclude when preceded by terminal punctuation + whitespace (sentence-start)
+    return !/[.!?]\s*$/.test(before);
+  });
+  if (hasMidSentenceI) {
     add({
       type: "grammar",
       title: "Uncapitalized \u201cI\u201d",
       body: 'When \u201ci\u201d refers to yourself, it should always be capitalized: **I**.',
-      micro_edit: null,
-    });
-  }
-
-  // Letter elongation: goooood, heeello, noiseeeee
-  const elongMatch = t.match(/\b[a-zA-Z]*([a-zA-Z])\1{2,}[a-zA-Z]*\b/);
-  if (elongMatch) {
-    add({
-      type: "grammar",
-      title: `Letter extension: \u201c${elongMatch[0]}\u201d`,
-      body: "Standard spelling doesn\u2019t repeat letters for emphasis. Remove the extra letters to use the standard form.",
       micro_edit: null,
     });
   }
@@ -402,6 +549,59 @@ export function obviousSpellingGrammarHeuristics(text) {
     if (rule.pattern.test(t)) {
       add({ type: rule.type, title: rule.title, body: rule.body, micro_edit: rule.micro_edit });
     }
+  }
+
+  // ── Missing-word patterns ─────────────────────────────────────────────────
+  // Each uses matchAll so multiple occurrences each get their own card.
+  // Titles quote the specific erroneous phrase so the guardrail can verify it
+  // and the highlight overlay can locate it.
+
+  // "went [place]" without preposition — "I went store" → "I went to the store"
+  for (const m of t.matchAll(/\bwent\s+(?:the\s+)?(?:store|market|grocery|mall|hospital|clinic|pharmacy|gym|office|school|class|library|museum|theater|theatre|restaurant|cafe|bank|shop|church|temple|salon|courthouse|airport|station)\b/gi)) {
+    const phrase = m[0].trim();
+    add({
+      type: "grammar",
+      title: `Missing preposition: \u201c${phrase}\u201d`,
+      body: "A preposition is likely missing between **went** and the destination. Standard form: **went to [the] [place]**.",
+      micro_edit: null,
+    });
+  }
+
+  // Subject pronoun directly before a present participle — missing auxiliary.
+  // "She looking forward" → "She is looking forward"
+  // Only fires when the pronoun is immediately adjacent (no auxiliary in between).
+  for (const m of t.matchAll(/\b(I|he|she|we|they|you)\s+([a-z]{4,}ing)\b/gi)) {
+    const phrase = `${m[1]} ${m[2]}`;
+    add({
+      type: "grammar",
+      title: `Missing auxiliary verb: \u201c${phrase}\u201d`,
+      body: `A verb like **is**, **are**, **was**, or **were** may be missing between **${m[1]}** and **${m[2]}**. Example: *${m[1]} is ${m[2]}*.`,
+      micro_edit: null,
+    });
+  }
+
+  // "needs + past participle" — missing "to be".
+  // "The report needs submitted" → "needs to be submitted"
+  for (const m of t.matchAll(/\bneeds\s+([a-z]+(?:ed|en))\b/gi)) {
+    const phrase = `needs ${m[1]}`;
+    add({
+      type: "grammar",
+      title: `Missing words: \u201c${phrase}\u201d`,
+      body: `**Needs** followed directly by a past participle is non-standard. The usual form is **needs to be ${m[1]}**.`,
+      micro_edit: `needs to be ${m[1]}`,
+    });
+  }
+
+  // Verb directly before "than" — missing comparative adjective.
+  // "He arrived than expected" → "He arrived earlier than expected"
+  for (const m of t.matchAll(/\b(arrived|came|got|left|started|ended|finished|completed|returned|appeared|ran|drove|flew|woke|landed)\s+(than)\b/gi)) {
+    const phrase = `${m[1]} ${m[2]}`;
+    add({
+      type: "grammar",
+      title: `Missing comparative word: \u201c${phrase}\u201d`,
+      body: `A comparative word (*earlier*, *later*, *sooner*, *faster*, *slower*, etc.) appears to be missing between **${m[1]}** and **than**.`,
+      micro_edit: null,
+    });
   }
 
   // TYPO_OVERRIDES (short transpositions the dict misses)
@@ -430,11 +630,31 @@ export function heuristicSuggestions(text, mode = "paused") {
   const pausedOnly = mode === "paused";
 
   if (pausedOnly) {
-    // TONE_SHIFT_RULES
+    // TONE_SHIFT_RULES (casual near formal context)
     for (const rule of TONE_SHIFT_RULES) {
       if (rule.casual.test(text) && rule.formal.test(text)) {
         suggestions.push({ type: "voice", title: rule.title, body: rule.body, micro_edit: null });
       }
+    }
+
+    // Standalone heavy casual/profane density — fires even without formal context.
+    // Uses 3+ *distinct* informal tokens as the threshold to avoid flagging a
+    // single casual word (which may be intentional voice).
+    const casualHits = text.match(
+      /\b(?:shit|fuck(?:ing|ed|er)?|damn(?:it)?|crap|ass(?:hole)?|bitch(?:ing|ed)?|wtf|pissed|bullshit|bastard|dumbass|hell(?:uva)?|bloody|bugger|dickhead|cunt|screw(?:ing|ed)|freaking|friggin|effing)\b/gi,
+    ) || [];
+    const distinctCasual = new Set(casualHits.map((w) => w.toLowerCase()));
+    const alreadyCoveredByShift = TONE_SHIFT_RULES.some(
+      (r) => r.casual.test(text) && r.formal.test(text),
+    );
+    if (distinctCasual.size >= 3 && !alreadyCoveredByShift) {
+      const examples = [...distinctCasual].slice(0, 3).map((w) => `\u201c${w}\u201d`).join(", ");
+      suggestions.push({
+        type: "voice",
+        title: "Heavy informal/profane register",
+        body: `This draft uses strong casual language throughout (${examples}\u2026). That can be authentic voice\u2014but if the audience is mixed or formal, one grounding sentence that signals the register is intentional can help readers follow the tone shift.`,
+        micro_edit: null,
+      });
     }
 
     // Question phrasing without "?"
@@ -492,43 +712,140 @@ export function heuristicSuggestions(text, mode = "paused") {
       });
     }
 
-    // Semicolon before coordinating conjunction
-    // ("I love dogs; and I have two" → should use a comma, not a semicolon)
-    const semiConjMatch = /;\s*(and|but|or|so|for|nor|yet)\b/i.exec(text);
-    if (semiConjMatch) {
-      const idx = semiConjMatch.index;
-      const snippet = text
-        .slice(Math.max(0, idx - 20), Math.min(text.length, idx + semiConjMatch[0].length + 20))
-        .trim()
-        .replace(/\s+/g, " ");
-      suggestions.push({
-        type: "punctuation",
-        title: "Semicolon before conjunction",
-        body: `Near \u201c\u2026${snippet}\u2026\u201d \u2014 a semicolon before *${semiConjMatch[1]}* is usually a sign to use a comma instead. Semicolons connect two independent clauses on their own; coordinating conjunctions (and/but/or\u2026) pair with a comma.`,
-        micro_edit: null,
-      });
-    }
-
-    // Run-on sentence: two subject-pronoun clauses in one sentence with no
-    // comma, semicolon, or connecting word separating them.
-    // Only checks segments 8–40 words long to avoid overlap with "Very long sentence".
-    const runOnSegments = text.split(/[.!?\n]+/).filter((s) => s.trim().length > 0);
-    for (const seg of runOnSegments) {
-      const trimmed = seg.trim();
-      const wordCount = trimmed.split(/\s+/).length;
-      if (wordCount < 8 || wordCount > HEURISTIC_THRESHOLDS.LONG_SENTENCE_WORDS) continue;
-      if (/[,;]/.test(trimmed)) continue;
-      if (/\b(?:and|but|or|so|for|nor|yet|because|although|while|since|if|when|that|which|who|whom|however|therefore|then|though)\b/i.test(trimmed)) continue;
-      const pronounHits = trimmed.match(/\b(?:I|he|she|we|they|you)\b/gi) || [];
-      if (pronounHits.length >= 2) {
-        const snippet = trimmed.length > 70 ? `${trimmed.slice(0, 70)}\u2026` : trimmed;
+    // Missing comma after introductory adverbial clause.
+    // Catches: "When I arrived the party had already started."
+    //          "Although she was tired she kept writing."
+    // Uses matchAll so every introductory clause in the document generates its
+    // own card.  Capped at 3 to avoid flooding.
+    // Exclude ; from the middle so this doesn't double-fire with "Semicolon after
+    // subordinate clause" (e.g. "Because it rained; we stayed").
+    {
+      const introRe = /(?:^|[.!?]\s+)(When|While|After|Before|Since|Although|Because|If|Though|As|Once|Until|Unless|Even though|Whenever)\s+[^,;\n]{15,60}?\s+(I|he|she|we|they|you|the|it|this|that|there)\b/gi;
+      const seenIntro = new Set();
+      let introCount = 0;
+      for (const m of text.matchAll(introRe)) {
+        if (introCount >= 3) break;
+        // Strip any leading non-letter chars (e.g. the consumed period from (?:[.!?]\s+))
+        // so the snippet starts cleanly with the introductory word.
+        const snippet = m[0].trim().replace(/^[^a-zA-Z]+/, "").slice(0, 55).trimEnd();
+        const key = snippet.toLowerCase();
+        if (seenIntro.has(key)) continue;
+        seenIntro.add(key);
         suggestions.push({
-          type: "coherence",
-          title: "Possible run-on sentence",
-          body: `Near \u201c${snippet}\u201d \u2014 two thoughts may be fused without punctuation or a joining word. Try a period, a comma + conjunction, or a semicolon between them.`,
+          type: "punctuation",
+          title: `Missing comma after introductory clause: \u201c${snippet}\u201d`,
+          body: `When a sentence opens with an introductory clause starting with *${m[1]}*, a comma typically follows before the main clause.`,
           micro_edit: null,
         });
-        break;
+        introCount++;
+      }
+    }
+
+    // Semicolon before coordinating conjunction — matchAll so every occurrence
+    // gets its own card.  ("I love dogs; and I have two" → use a comma instead)
+    {
+      const semiConjRe = /;\s*(and|but|or|so|for|nor|yet)\b/gi;
+      const seenSemiConj = new Set();
+      let semiConjCount = 0;
+      for (const m of text.matchAll(semiConjRe)) {
+        if (semiConjCount >= 3) break;
+        const idx = m.index;
+        const snippet = text
+          .slice(Math.max(0, idx - 20), Math.min(text.length, idx + m[0].length + 20))
+          .trim()
+          .replace(/\s+/g, " ")
+          .slice(0, 50)
+          .trimEnd();
+        const key = snippet.toLowerCase();
+        if (seenSemiConj.has(key)) continue;
+        seenSemiConj.add(key);
+        suggestions.push({
+          type: "punctuation",
+          title: `Semicolon before conjunction: \u201c${snippet}\u201d`,
+          body: `A semicolon before *${m[1]}* is usually a sign to use a comma instead. Semicolons connect two independent clauses on their own; coordinating conjunctions (and/but/or) pair with a comma.`,
+          micro_edit: null,
+        });
+        semiConjCount++;
+      }
+    }
+
+    // Semicolon after a subordinate clause — matchAll for every occurrence.
+    // "Because it was raining; we stayed inside." → dependent clause cannot end with ;
+    {
+      const semiSubordRe = /(?:^|[.!?\n]\s*)(Because|Although|Since|When|While|If|Though|Unless|Until|After|Before|Once|Even though)\b([^;.!?\n]{4,50});/gi;
+      const seenSemiSubord = new Set();
+      let semiSubordCount = 0;
+      for (const m of text.matchAll(semiSubordRe)) {
+        if (semiSubordCount >= 3) break;
+        const snippet = (m[1] + m[2]).trim().replace(/^[^a-zA-Z]+/, "").slice(0, 50).trimEnd();
+        const key = snippet.toLowerCase();
+        if (seenSemiSubord.has(key)) continue;
+        seenSemiSubord.add(key);
+        suggestions.push({
+          type: "punctuation",
+          title: `Semicolon after subordinate clause: \u201c${snippet}\u201d`,
+          body: `*${m[1]}* opens a dependent clause, not an independent one. A semicolon joins two independent clauses\u2014replace the semicolon here with a comma.`,
+          micro_edit: null,
+        });
+        semiSubordCount++;
+      }
+    }
+
+    // Run-on sentence: multiple independent-clause signals without enough
+    // conjunctions to link them all.
+    //
+    // Old approach bailed on ANY conjunction — that hid sentences like
+    // "I went to the store because I was hungry I bought nothing I left."
+    // New approach compares subject-pronoun count against available conjunctions:
+    // if pronouns outnumber conjunctions by 2+, the segment is likely fused.
+    // Only checks comma-free segments (8–45 words) to avoid overlap with
+    // the "very long sentence" card.
+    // Each run-on gets its own card with a unique snippet-based title so
+    // dedupeSuggestionTitles keeps them all and the highlight overlay can
+    // locate each one in the textarea.  Cap at 4 cards to avoid flooding.
+    const runOnSegments = text.split(/[.!?\n]+/).filter((s) => s.trim().length > 0);
+    let runOnCount = 0;
+    for (const seg of runOnSegments) {
+      if (runOnCount >= 4) break;
+      const trimmed = seg.trim();
+      const wordCount = trimmed.split(/\s+/).length;
+      if (wordCount < 8 || wordCount > 45) continue;
+      if (/[,;]/.test(trimmed)) continue;
+
+      // Only count true clause-linking conjunctions.
+      // "for" is almost always a preposition ("for the exam"), not a coordinator.
+      // "then" is almost always an adverb in these constructions ("went home then I slept").
+      // Keeping both would inflate conjCount and raise the threshold incorrectly.
+      const conjCount = (trimmed.match(
+        /\b(?:and|but|or|so|nor|yet|because|although|while|since|if|when|that|which|who|whom|however|therefore|though)\b/gi,
+      ) || []).length;
+
+      // Subject list: personal + "it" (very common clause-head: "it was great it helped me")
+      // + indefinite pronouns that can open a clause.
+      const pronounHits = trimmed.match(
+        /\b(?:I|he|she|we|they|you|it|nobody|everyone|someone|anyone)\b/gi,
+      ) || [];
+
+      // Signal 1: more subject pronouns than conjunctions to link them
+      const fusedByCounts = pronounHits.length >= Math.max(2, conjCount + 2);
+
+      // Signal 2: past-tense (or common irregular) verb immediately before a
+      // new subject pronoun — catches "The rain stopped we decided."
+      const fusedByVerb = !fusedByCounts &&
+        /\b(?:[a-z]+ed|went|came|got|told|saw|heard|felt|knew|left|ran|fell|sat|stood|woke|found|lost|won|brought|caught|stopped|ended|finished|started)\s+(?:I|he|she|we|they|you|it|nobody|everyone|someone)\b/i
+          .test(trimmed);
+
+      if (fusedByCounts || fusedByVerb) {
+        // Strip any leading quote character so the snippet starts with the actual text.
+        // Keep ≤55 chars (no ellipsis) so the guardrail can verify it against the draft.
+        const snippet = trimmed.replace(/^["\u201c\u2018']+/, "").slice(0, 55).trimEnd();
+        suggestions.push({
+          type: "coherence",
+          title: `Possible run-on sentence: \u201c${snippet}\u201d`,
+          body: "Two or more thoughts appear fused without enough punctuation or joining words. Try a period, a comma + conjunction, or a semicolon to separate them.",
+          micro_edit: null,
+        });
+        runOnCount++;
       }
     }
   }

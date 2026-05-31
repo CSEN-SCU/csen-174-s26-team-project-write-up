@@ -21,12 +21,13 @@ const FULL_REVIEW_MODE_APPEND = `
 --- MODE: FULL REVIEW (paused) ---
 The writer wants **comprehensive** feedback on the **entire** USER TEXT (all paragraphs), aligned with Write Up's product vision: surface issues *and* pedagogy, without flattening voice.
 
-You MUST cover three layers in one pass (separate cards, not one vague summary):
+You MUST cover four layers in one pass (separate cards, not one vague summary):
 1. **Mechanics** — List **every** clear spelling mistake, wrong word form, and agreement error in passages a human can read. Quote the exact wrong word or phrase in the title. Skip random keyboard-mash tokens at the top unless the writer clearly meant them as words. Do not invent issues.
-2. **Tone / voice** — Note how the draft sounds (casual, heated, uncertain, mixed register) and what a reader might feel. Preserve intentional informality; suggest small bridges only when tone fights the stated purpose.
-3. **Improvement** — Give concrete, optional next-step edits (micro_edit when helpful) for clarity, flow, or stronger phrasing on the **readable** sentences—including new material at the end of the draft, not only the opening.
+2. **Tone / voice** — Describe how the draft sounds: casual, heated, uncertain, mixed register, profane, formal, or otherwise. **You MUST produce at least one \`voice\` card** whenever the draft contains 3 or more informal or profane terms (e.g. swearing, slang, heated language) — even when that register is intentional. Note what a reader would feel. Preserve intentional informality; when tone clashes with the stated purpose, suggest one small bridge sentence.
+3. **Word choice** — Identify 1–2 vague, weak, or overused words (e.g. *very*, *really*, *a lot*, *nice*, *good*, *thing*, *stuff*, *big*, *bad*, *get*) and offer a more vivid or precise alternative as \`micro_edit\`.
+4. **Improvement** — Give concrete, optional next-step edits (micro_edit when helpful) for clarity, flow, or stronger phrasing on the **readable** sentences—including new material at the end of the draft, not only the opening.
 
-Return **6–12** suggestions when the draft has enough readable content; use fewer only if issues are truly sparse. Include at least one \`voice\` or \`clarity\` card and at least two \`grammar\`/\`punctuation\` cards when those issues exist.`;
+Return **6–12** suggestions when the draft has enough readable content; use fewer only if issues are truly sparse. Include at least one \`voice\` card when informal/emotional language is present, at least one \`word choice\` or \`clarity\` card, and at least two \`grammar\`/\`punctuation\` cards when those issues exist.`;
 
 /**
  * @param {string} text
