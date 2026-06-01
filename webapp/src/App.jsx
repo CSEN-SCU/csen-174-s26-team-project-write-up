@@ -6,7 +6,7 @@ import Profile from "./pages/Profile";
 import ExtensionAuth from "./pages/ExtensionAuth";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Write from "./pages/Write";
-import logo from '../logo.png';
+import logo from './icon.png';
 
 function TopbarAuth() {
   const { user, loading, serverProfile, signInWithGoogle, signOut } = useAuth();

@@ -3,6 +3,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; font-family: var(--font-body); background: var(--color-paper); color: var(--color-ink); }
 .topbar { display: flex; grid-template-columns: minmax(140px, 1fr) auto; align-items: center; column-gap: 24px; padding: 12px 16px; border-bottom: 1px solid var(--color-rule); background: linear-gradient(90deg, rgba(127, 193, 193, 0.18), rgba(251, 254, 255, 0.95) 42%, rgba(138, 99, 146, 0.16)); }
+.topbar img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #152d55; object-fit: cover; flex-shrink: 0; }
 .topbar h1 { justify-self: left; margin: 0; color: var(--color-plum); }
 .topbar nav { display: flex; justify-self: right; gap: 15px; flex-wrap: wrap; align-items: center; margin-left: auto;}
 .topbar a { color: var(--color-ink); text-decoration: none; font-weight: 600; }

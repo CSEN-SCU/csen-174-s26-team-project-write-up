@@ -400,14 +400,25 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-/* Cards that can highlight text in the editor show a tooltip-style cue */
+/* Cards that can highlight text in the editor are click-to-pin. */
 .write-card--highlightable {
-  cursor: default;
+  cursor: pointer;
 }
 
 .write-card--highlightable:hover {
-  border-color: rgba(255, 140, 0, 0.65);
-  box-shadow: 0 6px 20px rgba(255, 140, 0, 0.14), 0 0 0 3px rgba(255, 165, 0, 0.1);
+  border-color: rgba(255, 140, 0, 0.4);
+  box-shadow: 0 6px 20px rgba(255, 140, 0, 0.1), 0 0 0 2px rgba(255, 165, 0, 0.08);
+}
+
+.write-card--highlightable.is-active,
+.write-card--highlightable.is-active:hover {
+  border-color: rgba(255, 140, 0, 0.75);
+  box-shadow: 0 6px 20px rgba(255, 140, 0, 0.2), 0 0 0 3px rgba(255, 165, 0, 0.16);
+}
+
+.write-card--highlightable:focus-visible {
+  outline: 2px solid rgba(255, 140, 0, 0.55);
+  outline-offset: 2px;
 }
 
 .write-card h3 {
@@ -421,11 +432,43 @@
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--write-accent);
+  color: var(--write-ink);
   background: var(--write-accent-soft);
   border-radius: 999px;
   padding: 0.12rem 0.45rem;
   margin-bottom: 0.35rem;
+}
+
+.write-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+}
+
+.write-card-btn {
+  flex: 1;
+  border: 1px solid var(--write-accent-strong);
+  background: linear-gradient(135deg, #152d55 0%, #8a6392 100%);
+  color: #fbfeff;
+  border-radius: 10px;
+  padding: 0.45rem 0.65rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.write-card-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.write-card-btn:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.write-card-btn.is-selected {
+  box-shadow: 0 0 0 2px var(--write-accent);
 }
 
 .write-card p {

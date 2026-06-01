@@ -257,7 +257,8 @@ export default function Write() {
   const [decisionByCardId, setDecisionByCardId] = useState({});
   const [savingDecisionByCardId, setSavingDecisionByCardId] = useState({});
 
-  // Highlight overlay — tracks the character range the hovered card refers to
+  // Highlight overlay — tracks the character range the user pinned by clicking
+  // a correction card. Shape: { cardId, start, end } | null.
   const [activeHighlight, setActiveHighlight] = useState(null);
   const textareaRef = useRef(null);
   const highlightLayerRef = useRef(null);
@@ -348,6 +349,13 @@ export default function Write() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeHighlight]);
+
+  // Clear the pinned highlight whenever the document text changes (user
+  // typing, switching documents, or an auto-applied accept fix). The range
+  // would otherwise point at the wrong characters.
+  useEffect(() => {
+    setActiveHighlight(null);
+  }, [content]);
 
   const handleSuggestionDecision = useCallback(
     async (suggestion, idx, decision) => {
@@ -684,12 +692,41 @@ export default function Write() {
 
                   const saving = Boolean(savingDecisionByCardId[record.cardId]);
                   const highlightRange = findHighlightRange(s, content);
+                  const isActiveHighlight =
+                    highlightRange && activeHighlight?.cardId === record.cardId;
+                  const toggleHighlight = () => {
+                    if (!highlightRange) return;
+                    if (activeHighlight?.cardId === record.cardId) {
+                      setActiveHighlight(null);
+                    } else {
+                      setActiveHighlight({
+                        cardId: record.cardId,
+                        start: highlightRange.start,
+                        end: highlightRange.end,
+                      });
+                    }
+                  };
                   return (
                     <article
                       key={`${s.title}-${i}`}
-                      className={`write-card${highlightRange ? " write-card--highlightable" : ""}`}
-                      onMouseEnter={() => setActiveHighlight(highlightRange)}
-                      onMouseLeave={() => setActiveHighlight(null)}
+                      className={`write-card${
+                        highlightRange ? " write-card--highlightable" : ""
+                      }${isActiveHighlight ? " is-active" : ""}`}
+                      role={highlightRange ? "button" : undefined}
+                      tabIndex={highlightRange ? 0 : undefined}
+                      aria-pressed={highlightRange ? Boolean(isActiveHighlight) : undefined}
+                      onClick={(e) => {
+                        if (!highlightRange) return;
+                        if (e.target.closest("button")) return;
+                        toggleHighlight();
+                      }}
+                      onKeyDown={(e) => {
+                        if (!highlightRange) return;
+                        if (e.key !== "Enter" && e.key !== " ") return;
+                        if (e.target.closest("button")) return;
+                        e.preventDefault();
+                        toggleHighlight();
+                      }}
                     >
                       {s.issueType || s.type ? (
                         <span className="write-type-tag">{s.issueType || s.type}</span>
