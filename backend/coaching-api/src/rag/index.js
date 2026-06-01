@@ -112,6 +112,8 @@ function buildRagAugmentQuery(draftText) {
 
 /**
  * Multi-query TF–IDF: full draft, tail window, and spelling-augmented query.
+ * Used when broad retrieval is needed (legacy). Prefer retrieveForCoachingGuidance
+ * for LLM coaching — it does not bias toward grammar/punctuation docs.
  * @param {string} draftText
  * @param {number} [topK]
  */
@@ -124,6 +126,21 @@ export function retrieveForWritingCoach(draftText, topK = 8) {
   const aug = buildRagAugmentQuery(trimmed);
   const augHits = aug ? retrieve(`${trimmed.slice(0, 2400)}\n${aug}`, 6) : [];
   return mergeRetrievalResults([main, tailHits, augHits], topK);
+}
+
+/**
+ * Coaching guidance only (coherence, clarity, tone, style) — no spelling-augment
+ * query so retrieval is not tied to grammar/punctuation mechanics.
+ * @param {string} draftText
+ * @param {number} [topK]
+ */
+export function retrieveForCoachingGuidance(draftText, topK = 8) {
+  const trimmed = String(draftText).trim();
+  const main = retrieve(trimmed, topK);
+  const tail = trimmed.slice(-Math.min(520, trimmed.length));
+  const tailHits =
+    tail.length >= 100 && tail !== trimmed ? retrieve(tail, Math.min(6, topK)) : [];
+  return mergeRetrievalResults([main, tailHits], topK);
 }
 
 export async function loadKnowledge() {

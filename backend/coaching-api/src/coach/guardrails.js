@@ -3,7 +3,25 @@
  * Pure functions — easy to unit test without HTTP or models.
  */
 
-const ALLOWED_TYPES = new Set(["pattern", "coherence", "clarity", "grammar", "punctuation", "voice"]);
+const ALLOWED_TYPES = new Set([
+  "pattern",
+  "coherence",
+  "clarity",
+  "grammar",
+  "punctuation",
+  "voice",
+  "spelling",
+  "capitalization",
+  "apostrophe",
+  "homophone",
+  "spacing",
+  "repetition",
+  "stretched_word",
+  "style",
+  "tone",
+  "organization",
+  "audience",
+]);
 
 /** @param {string} s */
 function normalizeForMatch(s) {
@@ -69,7 +87,11 @@ export function filterQuotedEvidenceInUserText(suggestions, userText) {
  */
 export function allowOnlyKnownSuggestionTypes(suggestions) {
   if (!Array.isArray(suggestions)) return [];
-  return suggestions.filter((s) => ALLOWED_TYPES.has(String(s?.type ?? "").toLowerCase()));
+  return suggestions.filter((s) => {
+    const issueType = String(s?.issueType ?? "").toLowerCase();
+    if (issueType && ALLOWED_TYPES.has(issueType)) return true;
+    return ALLOWED_TYPES.has(String(s?.type ?? "").toLowerCase());
+  });
 }
 
 /**

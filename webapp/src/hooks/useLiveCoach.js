@@ -84,7 +84,9 @@ export function useLiveCoach({ enabled, currentId, title, content, onSave }) {
       const raw = Array.isArray(data.suggestions) ? data.suggestions : [];
       const nextChunks = Array.isArray(data.retrievedChunks) ? data.retrievedChunks : [];
       setSuggestions((prev) => {
-        if (m === "paused") return raw.length > 0 ? raw : prev;
+        // Paused pass is authoritative for this draft — always replace so we do not
+        // keep old cards that isCardStale would hide (blank panel with stale length).
+        if (m === "paused") return raw;
         if (trimmed === lastPausedCoachTextRef.current && prev.length > raw.length) return prev;
         return raw.length > 0 ? raw : prev;
       });

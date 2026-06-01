@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { ApiError, api } from "../lib/api";
 import {
@@ -299,6 +299,16 @@ export default function Write() {
     content,
     onSave: loadList,
   });
+
+  const visibleSuggestionCount = useMemo(() => {
+    if (!currentId) return 0;
+    return suggestions.filter((s, i) => {
+      const record = suggestionToFeedbackRecord(currentId, s, i);
+      if (decisionByCardId[record.cardId] === "declined") return false;
+      if (isCardStale(s, content)) return false;
+      return true;
+    }).length;
+  }, [suggestions, currentId, content, decisionByCardId]);
 
   useEffect(() => {
     // Load persisted decisions from localStorage when switching documents,
@@ -681,7 +691,9 @@ export default function Write() {
                       onMouseEnter={() => setActiveHighlight(highlightRange)}
                       onMouseLeave={() => setActiveHighlight(null)}
                     >
-                      {s.type ? <span className="write-type-tag">{s.type}</span> : null}
+                      {s.issueType || s.type ? (
+                        <span className="write-type-tag">{s.issueType || s.type}</span>
+                      ) : null}
                       <h3>{s.title}</h3>
                       <p>{s.body}</p>
                       {s.micro_edit ? (
@@ -713,13 +725,15 @@ export default function Write() {
                   );
                 })}
               </div>
-              {coachPhase === "ready" && suggestions.length === 0 ? (
+              {coachPhase === "ready" && visibleSuggestionCount === 0 ? (
                 <p className="write-suggestions-empty">
-                  No tips from the last pass—confirm coaching-api is running, then pause again.
+                  {suggestions.length > 0
+                    ? "Tips from the last pass no longer match this draft—pause again to refresh."
+                    : "No tips from the last pass—confirm coaching-api is running, then pause again."}
                 </p>
               ) : null}
               {(coachPhase === "needs_more_text" || coachPhase === "waiting_pause") &&
-              suggestions.length === 0 ? (
+              visibleSuggestionCount === 0 ? (
                 <p className="write-suggestions-empty">
                   Keep writing; suggestions appear after your first pause with enough text.
                 </p>

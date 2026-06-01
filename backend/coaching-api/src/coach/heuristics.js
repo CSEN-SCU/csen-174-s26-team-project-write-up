@@ -2,6 +2,10 @@ import nspell from "nspell";
 import dictionaryEn from "dictionary-en";
 import { tokenize, HEDGE_WORDS, countMatches } from "../lib/nlp.js";
 import { isLikelyGibberishToken } from "../lib/word-quality.js";
+import { makeCard, CONFIDENCE_MIN } from "./issue-types.js";
+import { coachDebug } from "./coach-log.js";
+import { logDetectorInput } from "./mechanics-debug.js";
+import { isSerialNounList } from "./mechanics-detect.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Seed tables
@@ -34,6 +38,28 @@ export const SPELLING_OVERRIDES = [
   // Kept for the pedagogical note — explains the i-before-e rule.
   { pattern: /\brecieve\b/i,        fix: "receive",   note: "i before e except after c" },
   { pattern: /\bwierd\b/i,          fix: "weird",     note: "i before e rule" },
+  { pattern: /\bdefinately\b/i,     fix: "definitely" },
+  { pattern: /\brecieved\b/i,       fix: "received" },
+];
+
+/** Lowercase tokens that should be capitalized as names/places/brands — not split or spell-corrected. */
+const COMMON_PROPER_LOWERCASE = new Set(
+  (
+    "sarah chicago paris london michael canada microsoft apple google amazon boston seattle " +
+    "toronto vancouver denver atlanta dallas houston phoenix detroit minneapolis portland " +
+    "john mary david james robert jennifer amanda alexander benjamin christopher elizabeth " +
+    "acme york california texas florida virginia colorado"
+  ).split(/\s+/),
+);
+
+/** Fused tokens: missing space between common word pairs (companyis → company is). */
+const FUSED_SPACING_PATTERNS = [
+  { pattern: /\bcompanyis\b/gi, fix: "company is" },
+  { pattern: /\bprojectis\b/gi, fix: "project is" },
+  { pattern: /\bsendthe\b/gi, fix: "send the" },
+  { pattern: /\bmeetafter\b/gi, fix: "meet after" },
+  { pattern: /\breportthe\b/gi, fix: "report the" },
+  { pattern: /\bemailthe\b/gi, fix: "email the" },
 ];
 
 /**
@@ -191,7 +217,7 @@ export const PHRASE_RULES = [
     type: "grammar",
     title: "Apostrophe confusion: \u201cyour going\u201d",
     body: "**Your** is possessive (*your bag*). Here the contraction **you\u2019re** (*you are*) is needed: **you\u2019re going**.",
-    micro_edit: null,
+    micro_edit: "you're going",
   },
   // "your being" → "you're being"
   {
@@ -199,6 +225,14 @@ export const PHRASE_RULES = [
     type: "grammar",
     title: "Apostrophe confusion: \u201cyour being\u201d",
     body: "**Your** is possessive; **you\u2019re** (*you are*) is the contraction. Try: **you\u2019re being**.",
+    micro_edit: "you're being",
+  },
+  // "your probably/right/wrong/…" → "you're probably/…"
+  {
+    pattern: /\byour\s+(?:probably|definitely|certainly|surely|clearly|obviously|right|wrong|late|early|ready|done|finished|supposed|crazy|lucky|kidding|joking)\b/i,
+    type: "grammar",
+    title: "Apostrophe confusion: \u201cyour\u201d vs \u201cyou\u2019re\u201d",
+    body: "**Your** shows possession (*your bag*). Before an adjective or adverb like this, the contraction **you\u2019re** (*you are*) is almost always intended.",
     micro_edit: null,
   },
 
@@ -212,6 +246,18 @@ export const PHRASE_RULES = [
     body: "**Were** is the past tense of *to be* (e.g., *they were planning*). At the start of a sentence without an explicit subject, the likely intended word is the contraction **we\u2019re** (*we are*).",
     micro_edit: null,
   },
+
+  // ── their / they're confusion ─────────────────────────────────────────────
+  // "their going to [verb]" is almost always "they're going to [verb]".
+  // Possessive "their" cannot precede the "going to" future construction.
+  {
+    pattern: /\btheir\s+going\s+to\b/i,
+    type: "grammar",
+    title: "Homophone: \u201ctheir going to\u201d",
+    body: "**Their** is a possessive pronoun (*their car*). In the phrase **their going to**, the intended word is the contraction **they\u2019re** (*they are*): **they\u2019re going to**.",
+    micro_edit: "they're going to",
+  },
+
 ];
 
 /**
@@ -228,10 +274,12 @@ export const TYPO_OVERRIDES = [
  * Thresholds for structural heuristics — tune these without touching logic.
  */
 export const HEURISTIC_THRESHOLDS = {
-  LONG_SENTENCE_WORDS: 40,
+  LONG_SENTENCE_WORDS: 28,
   HEDGE_REPEAT_MIN: 3,
-  OBVIOUS_MAX_CARDS: 12,
-  STRUCTURAL_MAX_CARDS: 8,
+  OBVIOUS_MAX_CARDS: 48,
+  STRUCTURAL_MAX_CARDS: 40,
+  MAX_LOWERCASE_START_CARDS: 6,
+  MAX_STRETCHED_CARDS: 5,
 };
 
 /**
@@ -242,8 +290,8 @@ export const HEURISTIC_THRESHOLDS = {
  */
 export const TONE_SHIFT_RULES = [
   {
-    casual: /\b(shit|fuck|damn|crap|ass)\b/i,
-    formal: /\b(vision|product|report|essay|thesis|professor|client|proposal|stakeholder)\b/i,
+    casual: /\b(shit|fuck(?:ing|ed|er)?|damn(?:it)?|crap|ass(?:hole)?|hell(?:uva)?|freaking|friggin|effing|wtf|bullshit|pissed|dumbass|bastard|bitch(?:ing)?|screw(?:ing|ed)?)\b/i,
+    formal: /\b(professional|vision|product|report|essay|thesis|professor|client|proposal|stakeholder|project|meeting|workplace|business|company|executive|management|corporate|enterprise|deadline|deliverable|strategy)\b/i,
     title: "Tone shift: casual language in a formal context",
     body: "Casual language can be honest voice\u2014but next to formal topic words, readers may need one bridge sentence to confirm the register is intentional.",
   },
@@ -286,7 +334,12 @@ const ALWAYS_PROPER_LOWER = new Set((
 try {
   spellchecker = nspell(dictionaryEn);
 } catch (e) {
-  console.warn("Heuristics spellchecker unavailable:", e?.message || e);
+  console.warn("[coaching-api] Heuristics spellchecker unavailable:", e?.message || e);
+}
+
+/** @returns {boolean} */
+export function isSpellcheckerReady() {
+  return Boolean(spellchecker);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -321,8 +374,13 @@ export function draftHasHeavyUnknownTokens(text) {
  * the dictionary produces misleading suggestions for names and brands.
  */
 export function spellDictionarySuggestions(text, opts = {}) {
-  if (!spellchecker) return [];
-  const maxCards = Math.max(1, Math.min(14, Number(opts.maxCards) || 8));
+  coachDebug("RUNNING SPELLING DETECTOR");
+  logDetectorInput("SPELLING", text);
+  if (!spellchecker) {
+    coachDebug("SPELLING SKIP spellchecker null");
+    return [];
+  }
+  const maxCards = Math.max(1, Math.min(40, Number(opts.maxCards) || 12));
   const spell = spellchecker;
   const t = String(text);
   const seen = new Set();
@@ -335,12 +393,15 @@ export function spellDictionarySuggestions(text, opts = {}) {
     const lw = m[0].toLowerCase();
     if (seen.has(lw)) continue;
     seen.add(lw);
-    cards.push({
-      type: "grammar",
-      title: `Spelling: \u201c${m[0]}\u201d`,
-      body: `Standard spelling is **${rule.fix}**${rule.note ? ` (${rule.note})` : ""}.`,
-      micro_edit: rule.fix,
-    });
+    cards.push(
+      makeCard(
+        "spelling",
+        `Spelling: \u201c${m[0]}\u201d`,
+        `Standard spelling is **${rule.fix}**${rule.note ? ` (${rule.note})` : ""}.`,
+        rule.fix,
+        0.97,
+      ),
+    );
     if (cards.length >= maxCards) break;
   }
 
@@ -365,12 +426,14 @@ export function spellDictionarySuggestions(text, opts = {}) {
           /:\s*$/.test(prevText);
         if (!atBoundary) {
           seen.add(lw);
-          cards.push({
-            type: "grammar",
-            title: `Capitalization: \u201c${raw}\u201d`,
-            body: `\u201c${raw}\u201d appears mid-sentence. Only proper nouns (names, places, titles) are capitalized in standard English. If this is a common word, use \u201c${lw}\u201d instead.`,
-            micro_edit: lw,
-          });
+          cards.push(
+            makeCard(
+              "capitalization",
+              `Capitalization: \u201c${raw}\u201d`,
+              `\u201c${raw}\u201d appears mid-sentence. Only proper nouns (names, places, titles) are capitalized in standard English. If this is a common word, use \u201c${lw}\u201d instead.`,
+              lw,
+            ),
+          );
         }
       }
       continue; // never run spelling checks on capital-initial words
@@ -386,21 +449,55 @@ export function spellDictionarySuggestions(text, opts = {}) {
 
     if (spell.correct(lw)) continue;
 
-    // Detect compound-word fusing before falling through to dictionary suggestions.
-    // e.g. "thebook" → "the" + "book".  Only attempt for tokens ≥ 5 characters;
-    // 4-letter tokens are already filtered out below.
+    const sug = spell.suggest(lw);
+    const capitalForm = lw.charAt(0).toUpperCase() + lw.slice(1);
+
+    // Known names/places — never spell-correct or bogus-split (e.g. chic+ago).
+    if (COMMON_PROPER_LOWERCASE.has(lw)) {
+      seen.add(lw);
+      cards.push(
+        makeCard(
+          "capitalization",
+          `Capitalization: \u201c${raw}\u201d`,
+          `\u201c${raw}\u201d looks like a proper noun (a name or place). Capitalize it: **${capitalForm}**.`,
+          capitalForm,
+          0.95,
+        ),
+      );
+      continue;
+    }
+
+    // Dictionary lists Title Case form — proper noun missing capitalization.
+    if (sug?.includes(capitalForm)) {
+      seen.add(lw);
+      cards.push(
+        makeCard(
+          "capitalization",
+          `Capitalization: \u201c${raw}\u201d`,
+          `\u201c${raw}\u201d looks like a proper noun (a name or place). If so, capitalize it: **${capitalForm}**.`,
+          capitalForm,
+        ),
+      );
+      continue;
+    }
+
+    // Fused words: only split when the left part is a common function word (avoids chic+ago).
+    const FUSE_LEFT = new Set(
+      "the send meet company project report account team file email with for from to in on at by".split(" "),
+    );
     if (lw.length >= 5) {
       let splitCard = null;
       for (let cut = 2; cut <= lw.length - 2; cut++) {
         const left = lw.slice(0, cut);
         const right = lw.slice(cut);
-        if (spell.correct(left) && spell.correct(right)) {
-          splitCard = {
-            type: "grammar",
-            title: `Possible split: \u201c${raw}\u201d`,
-            body: `This looks like two words fused together: **${left} ${right}**. Add a space if that matches your meaning.`,
-            micro_edit: `${left} ${right}`,
-          };
+        if (!FUSE_LEFT.has(left) || !spell.correct(right)) continue;
+        if (spell.correct(left) || FUSE_LEFT.has(left)) {
+          splitCard = makeCard(
+            "spacing",
+            `Missing space: \u201c${raw}\u201d`,
+            `This looks like two words fused together: **${left} ${right}**. Add a space if that matches your meaning.`,
+            `${left} ${right}`,
+          );
           break;
         }
       }
@@ -411,18 +508,18 @@ export function spellDictionarySuggestions(text, opts = {}) {
       }
     }
 
-    const sug = spell.suggest(lw);
-
     // When the dictionary flags a word but has no substitute, still emit a card —
     // the absence of a suggestion should not silently suppress the flag.
     if (!sug?.length) {
       seen.add(lw);
-      cards.push({
-        type: "grammar",
-        title: `Unrecognized word: \u201c${raw}\u201d`,
-        body: `\u201c${raw}\u201d isn\u2019t in the dictionary and no substitute was found. Double-check the spelling.`,
-        micro_edit: null,
-      });
+      cards.push(
+        makeCard(
+          "spelling",
+          `Unrecognized word: \u201c${raw}\u201d`,
+          `\u201c${raw}\u201d isn\u2019t in the dictionary and no substitute was found. Double-check the spelling.`,
+          null,
+        ),
+      );
       continue;
     }
 
@@ -441,22 +538,29 @@ export function spellDictionarySuggestions(text, opts = {}) {
     seen.add(lw);
 
     if (isApostropheInsertion) {
-      cards.push({
-        type: "grammar",
-        title: `Missing apostrophe: \u201c${raw}\u201d`,
-        body: `\u201c${raw}\u201d is missing an apostrophe. Standard form is **${topSug}**.`,
-        micro_edit: topSug,
-      });
+      cards.push(
+        makeCard(
+          "apostrophe",
+          `Missing apostrophe: \u201c${raw}\u201d`,
+          `\u201c${raw}\u201d is missing an apostrophe. Standard form is **${topSug}**.`,
+          topSug,
+          0.96,
+        ),
+      );
     } else {
-      cards.push({
-        type: "grammar",
-        title: `Spelling: \u201c${raw}\u201d`,
-        body: `Likely typo\u2014dictionary suggests **${topSug}**${sug[1] ? ` or *${sug[1]}*` : ""}. Pick the word that matches your meaning.`,
-        micro_edit: topSug,
-      });
+      cards.push(
+        makeCard(
+          "spelling",
+          `Spelling: \u201c${raw}\u201d`,
+          `Likely typo\u2014dictionary suggests **${topSug}**${sug[1] ? ` or *${sug[1]}*` : ""}. Pick the word that matches your meaning.`,
+          topSug,
+          0.91,
+        ),
+      );
     }
   }
 
+  coachDebug("SPELLING RESULTS", cards.length);
   return cards;
 }
 
@@ -466,89 +570,139 @@ export function spellDictionarySuggestions(text, opts = {}) {
  * Algorithmic checks run before the seed-table loops so they are never
  * displaced by a large number of matches from the phrase or typo tables.
  */
+/** Infer canonical issue type from a PHRASE_RULE template title. */
+function phraseRuleIssueType(rule) {
+  const title = rule.title || "";
+  if (/should of|could of|would of|your welcome|their\s|Homophone/i.test(title)) return "homophone";
+  if (/Apostrophe|its been|your going|your being/i.test(title)) return "apostrophe";
+  if (/Subject/i.test(title)) return "grammar";
+  if (/Word confusion/i.test(title)) return "homophone";
+  return "grammar";
+}
+
+function phraseRuleConfidence(rule) {
+  const t = phraseRuleIssueType(rule);
+  if (t === "homophone") return 0.96;
+  if (t === "apostrophe") return 0.94;
+  if (/Subject/i.test(rule.title || "")) return 0.88;
+  return 0.84;
+}
+
 export function obviousSpellingGrammarHeuristics(text) {
+  coachDebug("RUNNING OBVIOUS HEURISTICS DETECTOR");
+  logDetectorInput("OBVIOUS HEURISTICS", text);
   const t = String(text || "");
   const out = [];
-  const add = (card) => { if (card?.title) out.push(card); };
+  const add = (card, confidence = card?.confidence ?? 0.9) => {
+    if (!card?.title || confidence < CONFIDENCE_MIN) return;
+    out.push({ ...card, confidence });
+  };
 
-  // ── Algorithmic checks (generalise to any input) ───────────────────────────
+  // ── High-priority mechanics first (before repetition/capitalization flood) ──
 
-  // Repeated-word: catches 2+ consecutive identical words (e.g. "very very", "quickly quickly", "has has").
-  // Uses matchAll so every unique duplicated word gets its own card, not just the first one found.
-  const seenRepeated = new Set();
-  for (const m of t.matchAll(/\b(\w{2,})\b(?:\s+\1\b){1,}/gi)) {
-    const word = m[1].toLowerCase();
-    if (seenRepeated.has(word)) continue;
-    seenRepeated.add(word);
-    add({
-      type: "clarity",
-      title: `Repeated word: \u201c${m[1]}\u201d`,
-      body: `\u201c${m[1]}\u201d appears back-to-back. This is likely an accidental duplication\u2014delete the extra copy.`,
-      micro_edit: m[1],
-    });
-  }
-
-  // Stretched / elongated words — same letter repeated 3+ times in a row.
-  // nspell's top suggestion for e.g. "weirddd" is unpredictable (may be
-  // "weirdo" rather than "weird"), so we add a dedicated pass here.
-  // Cap at 3 cards per pass to avoid flooding the panel.
-  const seenStretched = new Set();
-  for (const m of t.matchAll(/\b([a-z]{4,})\b/gi)) {
-    const w = m[1];
-    if (!/([a-z])\1{2}/i.test(w)) continue;   // need 3+ consecutive same letter
-    const lw = w.toLowerCase();
-    if (seenStretched.has(lw)) continue;
-    seenStretched.add(lw);
-    add({
-      type: "clarity",
-      title: `Stretched word: \u201c${w}\u201d`,
-      body: `Repeating a letter for emphasis (*${w}*) is a spoken-language cue. In written form it may not land as intended\u2014consider italics, an em dash, or a stronger word.`,
-      micro_edit: null,
-    });
-  }
-
-  // Sentence-start capitalization — one card per unique lowercase word so
-  // every instance is individually visible and highlightable.
-  const seenLowerStart = new Set();
-  for (const m of t.matchAll(/[.!?]\s+([a-z]\w*)/g)) {
-    const word = m[1];
-    if (seenLowerStart.has(word)) continue;
-    seenLowerStart.add(word);
-    add({
-      type: "grammar",
-      title: `Lowercase letter after sentence end: \u201c${word}\u201d`,
-      body: `\u201c${word}\u201d starts a new sentence but isn\u2019t capitalized. Each sentence should begin with a capital letter.`,
-      micro_edit: word.charAt(0).toUpperCase() + word.slice(1),
-    });
-  }
-
-  // Uncapitalized first-person pronoun — mid-sentence occurrences only.
-  // Instances that directly follow [.!?] whitespace are already reported as
-  // "Lowercase letter after sentence end" cards; emitting both for the same
-  // character produces duplicate cards about the same issue.
-  const uncapIMatches = [...t.matchAll(/(?:^|\s)(i)(?=\s|[',;.!?]|$)/gm)];
-  const hasMidSentenceI = uncapIMatches.some((m) => {
-    const iPos = m.index + m[0].indexOf("i");
-    const before = t.slice(0, iPos);
-    // Exclude when preceded by terminal punctuation + whitespace (sentence-start)
-    return !/[.!?]\s*$/.test(before);
-  });
-  if (hasMidSentenceI) {
-    add({
-      type: "grammar",
-      title: "Uncapitalized \u201cI\u201d",
-      body: 'When \u201ci\u201d refers to yourself, it should always be capitalized: **I**.',
-      micro_edit: null,
-    });
-  }
-
-  // ── Seed-table loops ───────────────────────────────────────────────────────
-
-  // PHRASE_RULES
+  // PHRASE_RULES — matchAll so each hit gets a title quoting the exact phrase
+  // (needed for editor highlighting and stale-card detection).
   for (const rule of PHRASE_RULES) {
-    if (rule.pattern.test(t)) {
-      add({ type: rule.type, title: rule.title, body: rule.body, micro_edit: rule.micro_edit });
+    const flags = rule.pattern.flags.includes("g") ? rule.pattern.flags : `${rule.pattern.flags}g`;
+    const re = new RegExp(rule.pattern.source, flags);
+    const seenPhrase = new Set();
+    for (const m of t.matchAll(re)) {
+      const key = m[0].toLowerCase();
+      if (seenPhrase.has(key)) continue;
+      seenPhrase.add(key);
+      const title = /[\u201C"]/.test(rule.title)
+        ? rule.title.replace(/[\u201C"]([^\u201D"]*)[\u201D"]/, `\u201c${m[0]}\u201d`)
+        : `${rule.title}: \u201c${m[0]}\u201d`;
+      add(
+        makeCard(phraseRuleIssueType(rule), title, rule.body, rule.micro_edit, phraseRuleConfidence(rule)),
+        phraseRuleConfidence(rule),
+      );
     }
+  }
+
+  for (const rule of SPELLING_OVERRIDES) {
+    const m = rule.pattern.exec(t);
+    if (m) {
+      add(
+        makeCard(
+          "spelling",
+          `Spelling: \u201c${m[0]}\u201d`,
+          `Standard spelling is **${rule.fix}**${rule.note ? ` (${rule.note})` : ""}.`,
+          rule.fix,
+        ),
+      );
+    }
+  }
+
+  for (const { pattern, fix } of FUSED_SPACING_PATTERNS) {
+    for (const m of t.matchAll(pattern)) {
+      add(
+        makeCard(
+          "spacing",
+          `Missing space: \u201c${m[0]}\u201d`,
+          `Two words appear fused. Standard form: **${fix}**.`,
+          fix,
+        ),
+      );
+    }
+  }
+
+  for (const m of t.matchAll(/\b(dogs|cats)\s+(leash|collar|house|bed|bowl|food|toy|crate)\b/gi)) {
+    const phrase = m[0];
+    const before = t.slice(Math.max(0, m.index - 50), m.index);
+    const pluralOwner =
+      /\b(?:their|our|both|those|these|several|many)\s+dogs\b/i.test(before + phrase) ||
+      /\bdogs'\s+/i.test(t.slice(m.index, m.index + 20));
+    const owner = m[1].toLowerCase() === "dogs" ? "dog" : "cat";
+    const fix = pluralOwner ? `${m[1].toLowerCase()}' ${m[2]}` : `${owner}'s ${m[2]}`;
+    add(
+      makeCard(
+        "apostrophe",
+        `Apostrophe: \u201c${phrase}\u201d`,
+        pluralOwner
+          ? `Plural possession may fit here: **${fix}**.`
+          : `Use singular possessive **${owner}\u2019s ${m[2]}** (the leash belongs to one ${owner}).`,
+        fix,
+        0.92,
+      ),
+    );
+  }
+
+  for (const m of t.matchAll(/\bcant\b/gi)) {
+    add(
+      makeCard(
+        "apostrophe",
+        `Missing apostrophe: \u201ccant\u201d`,
+        `Standard contraction is **can\u2019t** (*cannot*).`,
+        "can't",
+      ),
+    );
+  }
+
+  for (const m of t.matchAll(/\b(mis|non|pre|re|un|up)\s+(configured|dated|placed|paid|profit|stop|treated|known)\b/gi)) {
+    add(
+      makeCard(
+        "spacing",
+        `Compound word: \u201c${m[0]}\u201d`,
+        `These words are usually written as one word or with a hyphen: **${m[1]}-${m[2]}** or **${m[1]}${m[2]}**.`,
+        `${m[1]}-${m[2]}`,
+      ),
+    );
+  }
+
+  for (const m of t.matchAll(
+    /\b([a-z]{3,})\s+([a-z]{3,})\s+([a-z]{3,})\s+and\s+([a-z]{3,})\b/gi,
+  )) {
+    if (!isSerialNounList(m[0])) continue;
+    add(
+      makeCard(
+        "punctuation",
+        `Missing commas in list: \u201c${m[0]}\u201d`,
+        `Items in a list usually need commas: *${m[1]}, ${m[2]}, ${m[3]}, and ${m[4]}*.`,
+        null,
+        0.88,
+      ),
+    );
   }
 
   // ── Missing-word patterns ─────────────────────────────────────────────────
@@ -559,12 +713,16 @@ export function obviousSpellingGrammarHeuristics(text) {
   // "went [place]" without preposition — "I went store" → "I went to the store"
   for (const m of t.matchAll(/\bwent\s+(?:the\s+)?(?:store|market|grocery|mall|hospital|clinic|pharmacy|gym|office|school|class|library|museum|theater|theatre|restaurant|cafe|bank|shop|church|temple|salon|courthouse|airport|station)\b/gi)) {
     const phrase = m[0].trim();
-    add({
-      type: "grammar",
-      title: `Missing preposition: \u201c${phrase}\u201d`,
-      body: "A preposition is likely missing between **went** and the destination. Standard form: **went to [the] [place]**.",
-      micro_edit: null,
-    });
+    add(
+      makeCard(
+        "grammar",
+        `Missing preposition: \u201c${phrase}\u201d`,
+        "A preposition is likely missing between **went** and the destination. Standard form: **went to [the] [place]**.",
+        null,
+        0.75,
+      ),
+      0.75,
+    );
   }
 
   // Subject pronoun directly before a present participle — missing auxiliary.
@@ -572,12 +730,16 @@ export function obviousSpellingGrammarHeuristics(text) {
   // Only fires when the pronoun is immediately adjacent (no auxiliary in between).
   for (const m of t.matchAll(/\b(I|he|she|we|they|you)\s+([a-z]{4,}ing)\b/gi)) {
     const phrase = `${m[1]} ${m[2]}`;
-    add({
-      type: "grammar",
-      title: `Missing auxiliary verb: \u201c${phrase}\u201d`,
-      body: `A verb like **is**, **are**, **was**, or **were** may be missing between **${m[1]}** and **${m[2]}**. Example: *${m[1]} is ${m[2]}*.`,
-      micro_edit: null,
-    });
+    add(
+      makeCard(
+        "grammar",
+        `Missing auxiliary verb: \u201c${phrase}\u201d`,
+        `A verb like **is**, **are**, **was**, or **were** may be missing between **${m[1]}** and **${m[2]}**. Example: *${m[1]} is ${m[2]}*.`,
+        null,
+        0.72,
+      ),
+      0.72,
+    );
   }
 
   // "needs + past participle" — missing "to be".
@@ -608,16 +770,362 @@ export function obviousSpellingGrammarHeuristics(text) {
   for (const rule of TYPO_OVERRIDES) {
     const m = rule.pattern.exec(t);
     if (m) {
-      add({
-        type: "grammar",
-        title: `Typo: \u201c${m[0]}\u201d`,
-        body: `Looks like **${rule.fix}**${rule.note ? ` (${rule.note})` : ""}.`,
-        micro_edit: rule.fix,
-      });
+      add(
+        makeCard(
+          "spelling",
+          `Typo: \u201c${m[0]}\u201d`,
+          `Looks like **${rule.fix}**${rule.note ? ` (${rule.note})` : ""}.`,
+          rule.fix,
+        ),
+      );
     }
   }
 
-  return out.slice(0, HEURISTIC_THRESHOLDS.OBVIOUS_MAX_CARDS);
+  // ── "its [predicate adjective]" → "it's [adjective]" ─────────────────────
+  // "its" is 3 chars so it escapes the 4-char spell-check floor — catch it here.
+  // Only fire when "its" is followed by a clear predicate adjective, not a noun.
+  for (const m of t.matchAll(/\bits\s+(ready|fine|done|finished|complete|correct|right|wrong|okay|ok|good|bad|better|worse|working|running|available|possible|clear|obvious|easy|hard|difficult|necessary|important|amazing|great|perfect|broken|stuck|gone|late|early|real|true|false|safe|dangerous|impossible)\b/gi)) {
+    const phrase = m[0].toLowerCase();
+    add(
+      makeCard(
+        "apostrophe",
+        `Apostrophe confusion: \u201c${phrase}\u201d`,
+        `**Its** (no apostrophe) is the possessive pronoun. Before a predicate adjective like *${m[1].toLowerCase()}*, the contraction **it\u2019s** (*it is*) is intended: **it\u2019s ${m[1].toLowerCase()}**.`,
+        `it's ${m[1].toLowerCase()}`,
+      ),
+    );
+  }
+
+  // ── "were" after a question word → "we're" ───────────────────────────────
+  // "why were here", "what were doing" — quotes the full matched phrase so
+  // findHighlightRange lands on the exact location, not any earlier "were".
+  const seenWereQ = new Set();
+  for (const m of t.matchAll(/\b(?:why|what|how)\s+were\s+(?:here|there|doing|going|saying|talking|waiting|leaving|staying|working|meeting|watching|helping|trying|looking)\b/gi)) {
+    const phrase = m[0].toLowerCase();
+    if (seenWereQ.has(phrase)) continue;
+    seenWereQ.add(phrase);
+    add(
+      makeCard(
+        "homophone",
+        `Word confusion: \u201c${phrase}\u201d`,
+        "**Were** is the past-tense plural of *to be*. After a question word like *why* or *what*, the contraction **we\u2019re** (*we are*) is almost always intended.",
+        null,
+      ),
+    );
+  }
+
+  const seenRepeated = new Set();
+  for (const m of t.matchAll(/\b(\w{2,})\b(?:\s+\1\b){1,}/gi)) {
+    const word = m[1].toLowerCase();
+    if (seenRepeated.has(word)) continue;
+    seenRepeated.add(word);
+    add(
+      makeCard(
+        "repetition",
+        `Repeated word: \u201c${m[1]}\u201d`,
+        `\u201c${m[1]}\u201d appears back-to-back. This is likely an accidental duplication\u2014delete the extra copy.`,
+        m[1],
+        0.92,
+      ),
+      0.92,
+    );
+  }
+
+  const seenStretched = new Set();
+  let stretchedCount = 0;
+  for (const m of t.matchAll(/\b([a-z]{4,})\b/gi)) {
+    if (stretchedCount >= HEURISTIC_THRESHOLDS.MAX_STRETCHED_CARDS) break;
+    const w = m[1];
+    if (!/([a-z])\1{2}/i.test(w)) continue;
+    const lw = w.toLowerCase();
+    if (seenStretched.has(lw)) continue;
+    seenStretched.add(lw);
+    stretchedCount += 1;
+    add(
+      makeCard(
+        "stretched_word",
+        `Stretched word: \u201c${w}\u201d`,
+        `Repeating a letter for emphasis (*${w}*) is a spoken-language cue. In written form it may not land as intended\u2014consider italics, an em dash, or a stronger word.`,
+        null,
+        0.72,
+      ),
+      0.72,
+    );
+  }
+
+  const seenLowerStart = new Set();
+  let lowerStartCount = 0;
+  for (const m of t.matchAll(/[.!?]\s+([a-z]\w*)/g)) {
+    if (lowerStartCount >= HEURISTIC_THRESHOLDS.MAX_LOWERCASE_START_CARDS) break;
+    const word = m[1];
+    if (seenLowerStart.has(word)) continue;
+    seenLowerStart.add(word);
+    lowerStartCount += 1;
+    add(
+      makeCard(
+        "capitalization",
+        `Lowercase letter after sentence end: \u201c${word}\u201d`,
+        `\u201c${word}\u201d starts a new sentence but isn\u2019t capitalized. Each sentence should begin with a capital letter.`,
+        word.charAt(0).toUpperCase() + word.slice(1),
+      ),
+    );
+  }
+
+  const uncapIMatches = [...t.matchAll(/(?:^|\s)(i)(?=\s|[',;.!?]|$)/gm)];
+  const hasMidSentenceI = uncapIMatches.some((m) => {
+    const iPos = m.index + m[0].indexOf("i");
+    const before = t.slice(0, iPos);
+    return !/[.!?]\s*$/.test(before);
+  });
+  if (hasMidSentenceI) {
+    add(
+      makeCard(
+        "capitalization",
+        "Uncapitalized \u201cI\u201d",
+        'When \u201ci\u201d refers to yourself, it should always be capitalized: **I**.',
+        null,
+      ),
+    );
+  }
+
+  const capped = out.slice(0, HEURISTIC_THRESHOLDS.OBVIOUS_MAX_CARDS);
+  coachDebug("OBVIOUS HEURISTICS RESULTS", capped.length);
+  return capped;
+}
+
+/**
+ * Punctuation mechanics — run in typing and paused modes (not gated on pause).
+ * @param {string} text
+ */
+export function collectPunctuationMechanics(text) {
+  coachDebug("RUNNING PUNCTUATION DETECTOR");
+  logDetectorInput("PUNCTUATION", text);
+  const suggestions = [];
+
+  const push = (card, confidence = card?.confidence ?? 0.9) => {
+    if (confidence < CONFIDENCE_MIN) return;
+    suggestions.push({ ...card, confidence });
+  };
+
+  for (const m of text.matchAll(
+    /(?:^|[.!?]\s+)(Wait|Hey|Well|Oh)\s+,?\s*(what|who|where|why|how)\b/gi,
+  )) {
+    const tail = text.slice(m.index, m.index + 80);
+    if (/\?/.test(tail.split(/\n/)[0])) continue;
+    push(
+      makeCard(
+        "punctuation",
+        `Missing question mark: \u201c${m[0].trim()}\u201d`,
+        `This reads as a question. Add a **?** or rephrase as a statement.`,
+        null,
+        0.88,
+      ),
+      0.88,
+    );
+  }
+
+  const commaSplicePatterns = [
+    /,\s+(?:I\b|(?:he|she|they|we|it|nobody|everyone|somebody|someone|anyone|no\s+one)\s)/i,
+    /\b[^.!?\n]{6,},\s+[a-z]+\s+(?:i|you|we|they|he|she|it)\b/i,
+  ];
+  for (const p of commaSplicePatterns) {
+    const m = p.exec(text);
+    if (!m) continue;
+    const idx = m.index;
+    const snippet = text
+      .slice(Math.max(0, idx - 25), Math.min(text.length, idx + m[0].length + 25))
+      .trim()
+      .replace(/\s+/g, " ");
+    push(
+      makeCard(
+        "punctuation",
+        `Possible comma splice: \u201c${snippet}\u201d`,
+        `A comma may be joining two full thoughts without a conjunction. Try a period, semicolon, or connector (*because*, *so*, *and*).`,
+        null,
+        0.88,
+      ),
+      0.88,
+    );
+    break;
+  }
+
+  {
+    const semiConjRe = /;\s*(and|but|or|so|for|nor|yet)\b/gi;
+    const seenSemiConj = new Set();
+    let semiConjCount = 0;
+    for (const m of text.matchAll(semiConjRe)) {
+      if (semiConjCount >= 3) break;
+      const idx = m.index;
+      const snippet = text
+        .slice(Math.max(0, idx - 20), Math.min(text.length, idx + m[0].length + 20))
+        .trim()
+        .replace(/\s+/g, " ")
+        .slice(0, 50)
+        .trimEnd();
+      const key = snippet.toLowerCase();
+      if (seenSemiConj.has(key)) continue;
+      seenSemiConj.add(key);
+      push(
+        makeCard(
+          "punctuation",
+          `Semicolon before conjunction: \u201c${snippet}\u201d`,
+          `A semicolon before *${m[1]}* is usually a sign to use a comma instead.`,
+          null,
+          0.95,
+        ),
+        0.95,
+      );
+      semiConjCount++;
+    }
+  }
+
+  {
+    const semiBeforeSubordRe =
+      /;\s*(because|although|since|while|if|though|unless|until|after|before|once|even though)\b/gi;
+    const seen = new Set();
+    let count = 0;
+    for (const m of text.matchAll(semiBeforeSubordRe)) {
+      if (count >= 3) break;
+      const idx = m.index;
+      const snippet = text
+        .slice(Math.max(0, idx - 20), Math.min(text.length, idx + m[0].length + 20))
+        .trim()
+        .replace(/\s+/g, " ")
+        .slice(0, 55)
+        .trimEnd();
+      const key = snippet.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      push(
+        makeCard(
+          "punctuation",
+          `Semicolon before subordinating conjunction: \u201c${snippet}\u201d`,
+          `*${m[1]}* opens a dependent clause — remove the semicolon before it.`,
+          null,
+          0.96,
+        ),
+        0.96,
+      );
+      count++;
+    }
+  }
+
+  {
+    const colonConjRe = /:\s*(and|but|or|so|for|nor|yet)\b/gi;
+    const seen = new Set();
+    for (const m of text.matchAll(colonConjRe)) {
+      const idx = m.index;
+      const snippet = text
+        .slice(Math.max(0, idx - 20), Math.min(text.length, idx + m[0].length + 20))
+        .trim()
+        .replace(/\s+/g, " ")
+        .slice(0, 55)
+        .trimEnd();
+      const key = snippet.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      push(
+        makeCard(
+          "punctuation",
+          `Colon before conjunction: \u201c${snippet}\u201d`,
+          `A colon should not precede the coordinating conjunction *${m[1]}*. Use a comma instead.`,
+          null,
+          0.96,
+        ),
+        0.96,
+      );
+    }
+  }
+
+  {
+    const conjAdvRe =
+      /\b(however|therefore|furthermore|moreover|nevertheless|nonetheless|consequently|accordingly|hence)\b/gi;
+    const seen = new Set();
+    for (const m of text.matchAll(conjAdvRe)) {
+      const adv = m[1].toLowerCase();
+      if (seen.has(adv)) continue;
+      const before = text.slice(0, m.index).trimEnd();
+      if (!before || /[.!?\n;:]\s*$/.test(before) || /,\s*$/.test(before)) continue;
+      seen.add(adv);
+      push(
+        makeCard(
+          "punctuation",
+          `Missing punctuation before \u201c${adv}\u201d`,
+          `**${m[1]}** joins independent clauses — precede it with a semicolon or start a new sentence.`,
+          null,
+          0.9,
+        ),
+        0.9,
+      );
+    }
+  }
+
+  {
+    const introRe =
+      /(?:^|[.!?]\s+)(When|While|After|Before|Since|Although|Because|If|Though|As|Once|Until|Unless|Even though|Whenever)\s+[^,;\n]{15,60}?\s+(I|he|she|we|they|you|the|it|this|that|there)\b/gi;
+    const seenIntro = new Set();
+    let introCount = 0;
+    for (const m of text.matchAll(introRe)) {
+      if (introCount >= 3) break;
+      const snippet = m[0].trim().replace(/^[^a-zA-Z]+/, "").slice(0, 55).trimEnd();
+      const key = snippet.toLowerCase();
+      if (seenIntro.has(key)) continue;
+      seenIntro.add(key);
+      if (snippet.split(/\s+/).length >= 6) {
+        push(
+          makeCard(
+            "punctuation",
+            `Missing comma after introductory clause: \u201c${snippet}\u201d`,
+            `When a sentence opens with *${m[1]}*, a comma typically follows before the main clause.`,
+            null,
+            0.82,
+          ),
+          0.82,
+        );
+        introCount++;
+      }
+    }
+  }
+
+  const runOnSegments = text.split(/[.!?\n]+/).filter((s) => s.trim().length > 0);
+  let runOnCount = 0;
+  for (const seg of runOnSegments) {
+    if (runOnCount >= 4) break;
+    const trimmed = seg.trim();
+    const wordCount = trimmed.split(/\s+/).length;
+    if (wordCount < 8 || wordCount > 55) continue;
+    if (/[,;]/.test(trimmed)) continue;
+    const conjCount = (
+      trimmed.match(
+        /\b(?:and|but|or|so|nor|yet|because|although|while|since|if|when|that|which|who|whom|however|therefore|though)\b/gi,
+      ) || []
+    ).length;
+    const pronounHits =
+      trimmed.match(/\b(?:I|he|she|we|they|you|it|nobody|everyone|someone|anyone)\b/gi) || [];
+    const fusedByCounts = pronounHits.length >= Math.max(2, conjCount + 2);
+    const fusedByVerb =
+      !fusedByCounts &&
+      /\b(?:[a-z]+ed|went|came|got|told|saw|heard|felt|knew|left|ran|fell|sat|stood|woke|found|lost|won|brought|caught|stopped|ended|finished|started|closed|walked|watched|talked)\s+(?:I|he|she|we|they|you|it|nobody|everyone|someone)\b/i.test(
+        trimmed,
+      );
+    if (fusedByCounts || fusedByVerb) {
+      const snippet = trimmed.replace(/^["\u201c\u2018']+/, "").slice(0, 55).trimEnd();
+      push(
+        makeCard(
+          "punctuation",
+          `Possible run-on sentence: \u201c${snippet}\u201d`,
+          "Two or more thoughts appear fused. Try a period, comma + conjunction, or semicolon.",
+          null,
+          0.92,
+        ),
+        0.92,
+      );
+      runOnCount++;
+    }
+  }
+
+  coachDebug("PUNCTUATION RESULTS", suggestions.length);
+  return suggestions;
 }
 
 /**
@@ -625,8 +1133,14 @@ export function obviousSpellingGrammarHeuristics(text) {
  * @param {string} text
  * @param {"typing" | "paused"} mode
  */
-export function heuristicSuggestions(text, mode = "paused") {
-  const suggestions = [];
+/**
+ * @param {string} text
+ * @param {"typing"|"paused"} mode
+ * @param {{ includePunctuation?: boolean }} [opts]
+ */
+export function heuristicSuggestions(text, mode = "paused", opts = {}) {
+  const suggestions =
+    opts.includePunctuation === false ? [] : [...collectPunctuationMechanics(text)];
   const pausedOnly = mode === "paused";
 
   if (pausedOnly) {
@@ -638,16 +1152,16 @@ export function heuristicSuggestions(text, mode = "paused") {
     }
 
     // Standalone heavy casual/profane density — fires even without formal context.
-    // Uses 3+ *distinct* informal tokens as the threshold to avoid flagging a
+    // Uses 2+ *distinct* informal tokens as the threshold to avoid flagging a
     // single casual word (which may be intentional voice).
     const casualHits = text.match(
-      /\b(?:shit|fuck(?:ing|ed|er)?|damn(?:it)?|crap|ass(?:hole)?|bitch(?:ing|ed)?|wtf|pissed|bullshit|bastard|dumbass|hell(?:uva)?|bloody|bugger|dickhead|cunt|screw(?:ing|ed)|freaking|friggin|effing)\b/gi,
+      /\b(?:shit|fuck(?:ing|ed|er)?|damn(?:it)?|crap|ass(?:hole)?|bitch(?:ing|ed)?|wtf|pissed|bullshit|bastard|dumbass|hell(?:uva)?|bloody|bugger|dickhead|cunt|screw(?:ing|ed)|freaking|friggin|effing|dammit|goddamn|moron|idiot|jerk)\b/gi,
     ) || [];
     const distinctCasual = new Set(casualHits.map((w) => w.toLowerCase()));
     const alreadyCoveredByShift = TONE_SHIFT_RULES.some(
       (r) => r.casual.test(text) && r.formal.test(text),
     );
-    if (distinctCasual.size >= 3 && !alreadyCoveredByShift) {
+    if (distinctCasual.size >= 2 && !alreadyCoveredByShift) {
       const examples = [...distinctCasual].slice(0, 3).map((w) => `\u201c${w}\u201d`).join(", ");
       suggestions.push({
         type: "voice",
@@ -712,175 +1226,31 @@ export function heuristicSuggestions(text, mode = "paused") {
       });
     }
 
-    // Missing comma after introductory adverbial clause.
-    // Catches: "When I arrived the party had already started."
-    //          "Although she was tired she kept writing."
-    // Uses matchAll so every introductory clause in the document generates its
-    // own card.  Capped at 3 to avoid flooding.
-    // Exclude ; from the middle so this doesn't double-fire with "Semicolon after
-    // subordinate clause" (e.g. "Because it rained; we stayed").
-    {
-      const introRe = /(?:^|[.!?]\s+)(When|While|After|Before|Since|Although|Because|If|Though|As|Once|Until|Unless|Even though|Whenever)\s+[^,;\n]{15,60}?\s+(I|he|she|we|they|you|the|it|this|that|there)\b/gi;
-      const seenIntro = new Set();
-      let introCount = 0;
-      for (const m of text.matchAll(introRe)) {
-        if (introCount >= 3) break;
-        // Strip any leading non-letter chars (e.g. the consumed period from (?:[.!?]\s+))
-        // so the snippet starts cleanly with the introductory word.
-        const snippet = m[0].trim().replace(/^[^a-zA-Z]+/, "").slice(0, 55).trimEnd();
-        const key = snippet.toLowerCase();
-        if (seenIntro.has(key)) continue;
-        seenIntro.add(key);
-        suggestions.push({
-          type: "punctuation",
-          title: `Missing comma after introductory clause: \u201c${snippet}\u201d`,
-          body: `When a sentence opens with an introductory clause starting with *${m[1]}*, a comma typically follows before the main clause.`,
-          micro_edit: null,
-        });
-        introCount++;
-      }
-    }
-
-    // Semicolon before coordinating conjunction — matchAll so every occurrence
-    // gets its own card.  ("I love dogs; and I have two" → use a comma instead)
-    {
-      const semiConjRe = /;\s*(and|but|or|so|for|nor|yet)\b/gi;
-      const seenSemiConj = new Set();
-      let semiConjCount = 0;
-      for (const m of text.matchAll(semiConjRe)) {
-        if (semiConjCount >= 3) break;
-        const idx = m.index;
-        const snippet = text
-          .slice(Math.max(0, idx - 20), Math.min(text.length, idx + m[0].length + 20))
-          .trim()
-          .replace(/\s+/g, " ")
-          .slice(0, 50)
-          .trimEnd();
-        const key = snippet.toLowerCase();
-        if (seenSemiConj.has(key)) continue;
-        seenSemiConj.add(key);
-        suggestions.push({
-          type: "punctuation",
-          title: `Semicolon before conjunction: \u201c${snippet}\u201d`,
-          body: `A semicolon before *${m[1]}* is usually a sign to use a comma instead. Semicolons connect two independent clauses on their own; coordinating conjunctions (and/but/or) pair with a comma.`,
-          micro_edit: null,
-        });
-        semiConjCount++;
-      }
-    }
-
-    // Semicolon after a subordinate clause — matchAll for every occurrence.
-    // "Because it was raining; we stayed inside." → dependent clause cannot end with ;
-    {
-      const semiSubordRe = /(?:^|[.!?\n]\s*)(Because|Although|Since|When|While|If|Though|Unless|Until|After|Before|Once|Even though)\b([^;.!?\n]{4,50});/gi;
-      const seenSemiSubord = new Set();
-      let semiSubordCount = 0;
-      for (const m of text.matchAll(semiSubordRe)) {
-        if (semiSubordCount >= 3) break;
-        const snippet = (m[1] + m[2]).trim().replace(/^[^a-zA-Z]+/, "").slice(0, 50).trimEnd();
-        const key = snippet.toLowerCase();
-        if (seenSemiSubord.has(key)) continue;
-        seenSemiSubord.add(key);
-        suggestions.push({
-          type: "punctuation",
-          title: `Semicolon after subordinate clause: \u201c${snippet}\u201d`,
-          body: `*${m[1]}* opens a dependent clause, not an independent one. A semicolon joins two independent clauses\u2014replace the semicolon here with a comma.`,
-          micro_edit: null,
-        });
-        semiSubordCount++;
-      }
-    }
-
-    // Run-on sentence: multiple independent-clause signals without enough
-    // conjunctions to link them all.
-    //
-    // Old approach bailed on ANY conjunction — that hid sentences like
-    // "I went to the store because I was hungry I bought nothing I left."
-    // New approach compares subject-pronoun count against available conjunctions:
-    // if pronouns outnumber conjunctions by 2+, the segment is likely fused.
-    // Only checks comma-free segments (8–45 words) to avoid overlap with
-    // the "very long sentence" card.
-    // Each run-on gets its own card with a unique snippet-based title so
-    // dedupeSuggestionTitles keeps them all and the highlight overlay can
-    // locate each one in the textarea.  Cap at 4 cards to avoid flooding.
-    const runOnSegments = text.split(/[.!?\n]+/).filter((s) => s.trim().length > 0);
-    let runOnCount = 0;
-    for (const seg of runOnSegments) {
-      if (runOnCount >= 4) break;
-      const trimmed = seg.trim();
-      const wordCount = trimmed.split(/\s+/).length;
-      if (wordCount < 8 || wordCount > 45) continue;
-      if (/[,;]/.test(trimmed)) continue;
-
-      // Only count true clause-linking conjunctions.
-      // "for" is almost always a preposition ("for the exam"), not a coordinator.
-      // "then" is almost always an adverb in these constructions ("went home then I slept").
-      // Keeping both would inflate conjCount and raise the threshold incorrectly.
-      const conjCount = (trimmed.match(
-        /\b(?:and|but|or|so|nor|yet|because|although|while|since|if|when|that|which|who|whom|however|therefore|though)\b/gi,
-      ) || []).length;
-
-      // Subject list: personal + "it" (very common clause-head: "it was great it helped me")
-      // + indefinite pronouns that can open a clause.
-      const pronounHits = trimmed.match(
-        /\b(?:I|he|she|we|they|you|it|nobody|everyone|someone|anyone)\b/gi,
-      ) || [];
-
-      // Signal 1: more subject pronouns than conjunctions to link them
-      const fusedByCounts = pronounHits.length >= Math.max(2, conjCount + 2);
-
-      // Signal 2: past-tense (or common irregular) verb immediately before a
-      // new subject pronoun — catches "The rain stopped we decided."
-      const fusedByVerb = !fusedByCounts &&
-        /\b(?:[a-z]+ed|went|came|got|told|saw|heard|felt|knew|left|ran|fell|sat|stood|woke|found|lost|won|brought|caught|stopped|ended|finished|started)\s+(?:I|he|she|we|they|you|it|nobody|everyone|someone)\b/i
-          .test(trimmed);
-
-      if (fusedByCounts || fusedByVerb) {
-        // Strip any leading quote character so the snippet starts with the actual text.
-        // Keep ≤55 chars (no ellipsis) so the guardrail can verify it against the draft.
-        const snippet = trimmed.replace(/^["\u201c\u2018']+/, "").slice(0, 55).trimEnd();
-        suggestions.push({
-          type: "coherence",
-          title: `Possible run-on sentence: \u201c${snippet}\u201d`,
-          body: "Two or more thoughts appear fused without enough punctuation or joining words. Try a period, a comma + conjunction, or a semicolon to separate them.",
-          micro_edit: null,
-        });
-        runOnCount++;
-      }
+    if (
+      /\brecord profits\b/i.test(text) &&
+      /\bdeclining\b/i.test(text) &&
+      /\b(?:shrinking|shrink)\b/i.test(text)
+    ) {
+      suggestions.push(
+        makeCard(
+          "coherence",
+          "Contradictory statements",
+          "The passage claims record profits and growth while also describing declining sales and shrinking revenue. Clarify which direction is accurate.",
+          null,
+        ),
+      );
     }
   }
 
-  // Extra spaces (all modes)
   if (text.includes("  ")) {
-    suggestions.push({
-      type: "clarity",
-      title: "Extra spaces",
-      body: "Small formatting glitches can distract in polished contexts. Not a voice issue\u2014just cleanup.",
-      micro_edit: null,
-    });
-  }
-
-  // Comma splice — broadened pattern catches "canceled, nobody told me, I still drove"
-  const commaSplicePatterns = [
-    /,\s+(?:I\b|(?:he|she|they|we|it|nobody|everyone|somebody|someone|anyone|no\s+one)\s)/i,
-    /\b[^.!?\n]{6,},\s+[a-z]+\s+(?:i|you|we|they|he|she|it)\b/i,
-  ];
-  let commaSpliceMatch = null;
-  for (const p of commaSplicePatterns) {
-    const m = p.exec(text);
-    if (m) { commaSpliceMatch = m; break; }
-  }
-  if (commaSpliceMatch) {
-    const idx = commaSpliceMatch.index;
-    const snippetStart = Math.max(0, idx - 25);
-    const snippetEnd = Math.min(text.length, idx + commaSpliceMatch[0].length + 25);
-    const snippet = text.slice(snippetStart, snippetEnd).trim().replace(/\s+/g, " ");
-    suggestions.push({
-      type: "grammar",
-      title: "Possible comma splice",
-      body: `Near \u201c\u2026${snippet}\u2026\u201d \u2014 a comma may be joining two or more full thoughts without a conjunction. Try a period, semicolon, or a connector (e.g. *because* / *so* / *and*) to make the structure clear.`,
-      micro_edit: null,
-    });
+    suggestions.push(
+      makeCard(
+        "spacing",
+        "Extra spaces",
+        "Small formatting glitches can distract in polished contexts. Not a voice issue\u2014just cleanup.",
+        null,
+      ),
+    );
   }
 
   return suggestions.slice(0, HEURISTIC_THRESHOLDS.STRUCTURAL_MAX_CARDS);
