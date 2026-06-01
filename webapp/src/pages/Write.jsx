@@ -257,9 +257,15 @@ export default function Write() {
   const [decisionByCardId, setDecisionByCardId] = useState({});
   const [savingDecisionByCardId, setSavingDecisionByCardId] = useState({});
 
-  // Highlight overlay — tracks the character range the user pinned by clicking
-  // a correction card. Shape: { cardId, start, end } | null.
+  // Highlight overlay state.
+  //   activeHighlight  — the range pinned by clicking a correction card.
+  //   hoverHighlight   — the transient range while the mouse is over a card.
+  // The displayed highlight is `hoverHighlight ?? activeHighlight`, so a
+  // hover always wins, but the pinned highlight comes back when the mouse
+  // leaves. Shape for both: { cardId, start, end } | null.
   const [activeHighlight, setActiveHighlight] = useState(null);
+  const [hoverHighlight, setHoverHighlight] = useState(null);
+  const displayedHighlight = hoverHighlight ?? activeHighlight;
   const textareaRef = useRef(null);
   const highlightLayerRef = useRef(null);
 
@@ -336,25 +342,27 @@ export default function Write() {
     });
   }, [canUseBackend, currentId, lastCoachAt, coachPhase]);
 
-  // When a new highlight range becomes active, scroll the textarea to reveal it.
+  // When the displayed highlight changes, scroll the textarea to reveal it.
   useEffect(() => {
-    if (!activeHighlight || !textareaRef.current) return;
+    const target = hoverHighlight ?? activeHighlight;
+    if (!target || !textareaRef.current) return;
     const textarea = textareaRef.current;
     const lineHeight = parseFloat(window.getComputedStyle(textarea).lineHeight) || 24;
-    const newlines = (content.substring(0, activeHighlight.start).match(/\n/g) || []).length;
+    const newlines = (content.substring(0, target.start).match(/\n/g) || []).length;
     const targetScrollTop = Math.max(0, newlines * lineHeight - textarea.clientHeight / 3);
     textarea.scrollTop = targetScrollTop;
     if (highlightLayerRef.current) {
       highlightLayerRef.current.scrollTop = targetScrollTop;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeHighlight]);
+  }, [activeHighlight, hoverHighlight]);
 
-  // Clear the pinned highlight whenever the document text changes (user
-  // typing, switching documents, or an auto-applied accept fix). The range
-  // would otherwise point at the wrong characters.
+  // Clear both pinned and hover highlights whenever the document text changes
+  // (user typing, switching documents, or an auto-applied accept fix). The
+  // stored ranges would otherwise point at the wrong characters.
   useEffect(() => {
     setActiveHighlight(null);
+    setHoverHighlight(null);
   }, [content]);
 
   const handleSuggestionDecision = useCallback(
@@ -601,13 +609,13 @@ export default function Write() {
                     className="write-editor-highlight-layer"
                     aria-hidden="true"
                   >
-                    {activeHighlight ? (
+                    {displayedHighlight ? (
                       <>
-                        {content.substring(0, activeHighlight.start)}
+                        {content.substring(0, displayedHighlight.start)}
                         <mark className="write-highlight-mark">
-                          {content.substring(activeHighlight.start, activeHighlight.end)}
+                          {content.substring(displayedHighlight.start, displayedHighlight.end)}
                         </mark>
-                        {content.substring(activeHighlight.end)}
+                        {content.substring(displayedHighlight.end)}
                       </>
                     ) : null}
                   </div>
@@ -727,6 +735,15 @@ export default function Write() {
                         e.preventDefault();
                         toggleHighlight();
                       }}
+                      onMouseEnter={() => {
+                        if (!highlightRange) return;
+                        setHoverHighlight({
+                          cardId: record.cardId,
+                          start: highlightRange.start,
+                          end: highlightRange.end,
+                        });
+                      }}
+                      onMouseLeave={() => setHoverHighlight(null)}
                     >
                       {s.issueType || s.type ? (
                         <span className="write-type-tag">{s.issueType || s.type}</span>

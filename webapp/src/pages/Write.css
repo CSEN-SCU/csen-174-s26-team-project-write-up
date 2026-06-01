@@ -447,9 +447,9 @@
 
 .write-card-btn {
   flex: 1;
-  border: 1px solid var(--write-accent-strong);
-  background: linear-gradient(135deg, #152d55 0%, #8a6392 100%);
-  color: #fbfeff;
+  border: 1px solid var(--write-border);
+  background: rgba(127, 193, 193, 0.2);
+  color: var(--write-ink);
   border-radius: 10px;
   padding: 0.45rem 0.65rem;
   font: inherit;
@@ -459,7 +459,7 @@
 }
 
 .write-card-btn:hover:not(:disabled) {
-  filter: brightness(1.05);
+  background: rgba(127, 193, 193, 0.32);
 }
 
 .write-card-btn:disabled {
@@ -468,6 +468,7 @@
 }
 
 .write-card-btn.is-selected {
+  background: rgba(127, 193, 193, 0.4);
   box-shadow: 0 0 0 2px var(--write-accent);
 }
 
