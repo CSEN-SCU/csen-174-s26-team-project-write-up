@@ -518,6 +518,15 @@
 }
 
 .write-intro-overlay {
+  /* The overlay is rendered as a sibling of .write-page, so it doesn't
+     inherit the --write-* variables scoped to .write-page. Re-declare
+     them here so .write-intro-card and its text read correctly. */
+  --write-surface: #ffffff;
+  --write-border: rgba(127, 193, 193, 0.44);
+  --write-radius: 12px;
+  --write-shadow: 0 12px 32px rgba(21, 45, 85, 0.07);
+  --write-ink-muted: rgba(21, 45, 85, 0.76);
+  color: #152d55;
   position: fixed;
   inset: 0;
   z-index: 200;
