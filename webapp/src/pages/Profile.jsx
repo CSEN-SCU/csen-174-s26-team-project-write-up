@@ -263,7 +263,6 @@ export default function Profile() {
             </header>
 
             <div className="profile-page__sign-card">
-              <h3 className="profile-page__card-title">Sign in</h3>
               <button
                 type="button"
                 className="profile-page__submit dashboard__btn dashboard__btn--primary"
