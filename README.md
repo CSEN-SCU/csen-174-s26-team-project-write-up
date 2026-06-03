@@ -1,4 +1,5 @@
 ﻿# Write Up
+Demo Video: https://youtu.be/N43Mmq7o4cc 
 
 Product scaffold aligned to C4 Option B (`docs/architecture.md`):
 - `backend/app-api` (Flask + Firebase integration)
