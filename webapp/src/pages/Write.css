@@ -287,6 +287,17 @@
   font-size: 1.05rem;
   font-family: var(--font-body);
   color: var(--write-ink);
+  /* Hide the textarea's native scrollbar so its content width matches the
+     overlay .write-editor-highlight-layer (which is overflow: hidden and
+     therefore has no scrollbar gutter). Without this, the scrollbar steals
+     ~15px of width, lines wrap at a different point than in the highlight
+     layer, and the orange <mark> drifts away from the text it underlines.
+     Mouse wheel, trackpad, and keyboard scrolling all still work. */
+  scrollbar-width: none;
+}
+
+.write-editor::-webkit-scrollbar {
+  display: none;
 }
 
 .write-empty-state {

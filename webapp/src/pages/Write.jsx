@@ -9,8 +9,6 @@ import {
 } from "../hooks/useLiveCoach";
 import "./Write.css";
 
-const INTRO_DISMISSED_KEY = "writeup-web-intro-dismissed";
-
 function hashSuggestion(parts) {
   const text = parts.join("|");
   let hash = 2166136261;
@@ -250,9 +248,6 @@ export default function Write() {
   const [content, setContent] = useState("");
   const [topError, setTopError] = useState(null);
   const [listLoading, setListLoading] = useState(false);
-  const [showIntro, setShowIntro] = useState(
-    () => localStorage.getItem(INTRO_DISMISSED_KEY) !== "1",
-  );
   const lastSyncedCoachAtRef = useRef(null);
   const [decisionByCardId, setDecisionByCardId] = useState({});
   const [savingDecisionByCardId, setSavingDecisionByCardId] = useState({});
@@ -343,17 +338,25 @@ export default function Write() {
   }, [canUseBackend, currentId, lastCoachAt, coachPhase]);
 
   // When the displayed highlight changes, scroll the textarea to reveal it.
+  // We measure the <mark>'s actual rendered offsetTop inside the highlight
+  // layer rather than computing `newlines * lineHeight`, because the latter
+  // only counts hard newlines and silently mis-positions long word-wrapped
+  // paragraphs. Reading offsetTop works correctly for wrapped text because
+  // the browser has already laid out the visual lines.
   useEffect(() => {
     const target = hoverHighlight ?? activeHighlight;
-    if (!target || !textareaRef.current) return;
+    if (!target || !textareaRef.current || !highlightLayerRef.current) return;
+    const layer = highlightLayerRef.current;
     const textarea = textareaRef.current;
+    const mark = layer.querySelector(".write-highlight-mark");
+    if (!mark) return;
     const lineHeight = parseFloat(window.getComputedStyle(textarea).lineHeight) || 24;
-    const newlines = (content.substring(0, target.start).match(/\n/g) || []).length;
-    const targetScrollTop = Math.max(0, newlines * lineHeight - textarea.clientHeight / 3);
+    const targetScrollTop = Math.max(
+      0,
+      mark.offsetTop - textarea.clientHeight / 3 + lineHeight / 2,
+    );
     textarea.scrollTop = targetScrollTop;
-    if (highlightLayerRef.current) {
-      highlightLayerRef.current.scrollTop = targetScrollTop;
-    }
+    layer.scrollTop = targetScrollTop;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeHighlight, hoverHighlight]);
 
@@ -407,11 +410,6 @@ export default function Write() {
     },
     [canUseBackend, currentId, decisionByCardId, savingDecisionByCardId],
   );
-
-  const dismissIntro = useCallback(() => {
-    localStorage.setItem(INTRO_DISMISSED_KEY, "1");
-    setShowIntro(false);
-  }, []);
 
   const openDocument = useCallback(
     async (id) => {
@@ -516,30 +514,7 @@ export default function Write() {
   }
 
   return (
-    <>
-      {showIntro ? (
-        <div className="write-intro-overlay" role="dialog" aria-modal="true" aria-labelledby="write-intro-title">
-          <div className="write-intro-card">
-            <h2 id="write-intro-title" className="write-intro-title">
-              Write Up — web editor
-            </h2>
-            <p className="write-intro-lead">
-              Same live coaching as the Chris prototype: lighter checks while you type, a full pass after you
-              pause. Documents save to your account; coaching uses app-api with your Firebase session.
-            </p>
-            <ol className="write-intro-steps">
-              <li>Run <code>npm run dev:all</code> (or app-api + coaching-api + this webapp).</li>
-              <li>Click <strong>New document</strong>, write a paragraph in your voice.</li>
-              <li>Pause ~2s for punctuation and flow; watch cards on the right.</li>
-            </ol>
-            <button type="button" className="write-btn write-btn--primary" onClick={dismissIntro}>
-              Enter the editor
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      <section className="write-page" aria-label="Writing editor">
+    <section className="write-page" aria-label="Writing editor">
         <div className="write-shell">
           <aside className="write-panel">
             <h1 className="write-brand">
@@ -809,7 +784,6 @@ export default function Write() {
           </aside>
         </div>
       </section>
-    </>
   );
 }
 
