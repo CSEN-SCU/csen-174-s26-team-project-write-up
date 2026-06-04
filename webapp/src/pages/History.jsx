@@ -1,7 +1,7 @@
 ﻿import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-import { api } from "../lib/api";
+import { ApiError, api } from "../lib/api";
 import { useApi } from "../lib/useApi";
 
 const TAB_CORRECTIONS = "corrections";
@@ -12,10 +12,11 @@ function mapFirestoreRow(raw, idx) {
   const createdAt = raw.createdAt ?? "";
   const doc = raw.docId ?? "";
   const id = `${doc}-${cardId}-${createdAt}-${idx}`;
+  const recordId = String(raw.id || "").trim();
   const mistake = String(raw.issue || "").trim() || "(untitled)";
   const fixes = Array.isArray(raw.fixOptions) ? raw.fixOptions : [];
   const correction = String(fixes[0] || "").trim() || String(raw.why || "").trim() || "—";
-  return { id, mistake, correction };
+  return { id, recordId, mistake, correction };
 }
 
 export default function History() {
@@ -26,6 +27,8 @@ export default function History() {
   const rawDocId = searchParams.get("docId");
   const docId = rawDocId && rawDocId.trim() ? rawDocId.trim() : null;
   const [activeTab, setActiveTab] = useState(TAB_CORRECTIONS);
+  const [deletingRecordId, setDeletingRecordId] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
   const decisionFilter = activeTab === TAB_CORRECTIONS ? "accepted" : "declined";
 
   const { data, loading, error, retry } = useApi(
@@ -49,6 +52,27 @@ export default function History() {
     activeTab === TAB_CORRECTIONS ? "history-tab-corrections" : "history-tab-leave";
 
   const emptyCorrections = activeTab === TAB_CORRECTIONS && correctionRows.length === 0 && !loading;
+
+  async function handleDeleteEntry(item) {
+    if (!item.recordId || deletingRecordId) return;
+    const label =
+      activeTab === TAB_CORRECTIONS
+        ? "Remove this accepted correction from your history?"
+        : "Remove this declined suggestion from your history?";
+    if (!window.confirm(label)) return;
+
+    setDeleteError(null);
+    setDeletingRecordId(item.recordId);
+    try {
+      await api.deleteFeedback(item.recordId);
+      retry();
+    } catch (err) {
+      const code = err instanceof ApiError ? err.code : "unknown_error";
+      setDeleteError(`Could not delete entry (${code}).`);
+    } finally {
+      setDeletingRecordId(null);
+    }
+  }
 
   async function handleGoogleSignIn() {
     setGoogleError(null);
@@ -168,8 +192,13 @@ export default function History() {
         )}
         <p className="history-page__hint">
           <strong>Correction history</strong> lists suggestions you accepted. <strong>Leave as written</strong> lists
-          suggestions you declined.
+          suggestions you declined. Use <strong>Delete</strong> on any row to remove it from your account.
         </p>
+        {deleteError ? (
+          <p className="history-page__note" role="alert">
+            {deleteError}
+          </p>
+        ) : null}
 
         <div id="history-tabpanel" role="tabpanel" aria-labelledby={tabPanelLabelledBy}>
           {activeTab === TAB_CORRECTIONS && loading ? (
@@ -197,6 +226,21 @@ export default function History() {
               ) : (
                 listForTab.map((item) => (
                   <div key={item.id} className="history-page__item history-page__split" role="listitem">
+                    <div className="history-page__item-actions">
+                      <button
+                        type="button"
+                        className="history-page__delete-btn"
+                        onClick={() => void handleDeleteEntry(item)}
+                        disabled={!item.recordId || deletingRecordId === item.recordId}
+                        aria-label={
+                          activeTab === TAB_CORRECTIONS
+                            ? "Delete accepted correction"
+                            : "Delete declined suggestion"
+                        }
+                      >
+                        {deletingRecordId === item.recordId ? "Deleting…" : "Delete"}
+                      </button>
+                    </div>
                     <div className="history-page__correction">
                       <span className="history-page__col-label">
                         {activeTab === TAB_CORRECTIONS ? "Suggestion / fix" : "Suggested change"}

@@ -1,6 +1,31 @@
 ﻿# Write Up
 Demo Video: https://youtu.be/N43Mmq7o4cc 
 
+**Learning-first writing coach** — paste a draft, pause for coaching, and get mechanics plus higher-level feedback without losing your voice.
+
+| | |
+|---|---|
+| **Live app** | https://csen-174-s26-team-project-write-up.vercel.app/ |
+| **Demo video** | *[Add link]* |
+| **Technical report** | [`TECHNICAL_REPORT.md`](TECHNICAL_REPORT.md) (export PDF for Camino) |
+| **Architecture** | [`docs/architecture.md`](docs/architecture.md) |
+
+![Write Up — add screenshot or GIF here](webapp/logo.png)
+
+## Run locally
+
+```bash
+npm run install:all
+# Configure .env from .env.example, backend/app-api/.env.example, backend/coaching-api/.env.example, webapp/.env.example
+npm run dev:all   # coaching-api :8787, app-api :5050, webapp :5173
+```
+
+See [`backend/app-api/README.md`](backend/app-api/README.md) and [`backend/coaching-api/.env.example`](backend/coaching-api/.env.example) for secrets (`COACHING_INTERNAL_SECRET` must match on both APIs).
+
+---
+
+## Repository layout
+
 Product scaffold aligned to C4 Option B (`docs/architecture.md`):
 - `backend/app-api` (Flask + Firebase integration)
 - `backend/coaching-api` (Express + RAG + LLM)

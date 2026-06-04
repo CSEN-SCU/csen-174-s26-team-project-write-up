@@ -533,13 +533,42 @@ main { padding: 16px; }
 }
 
 .page.history-page .history-page__item {
+  position: relative;
   margin: 0 0 var(--space-4);
   padding: var(--space-4);
+  padding-top: calc(var(--space-4) + 1.75rem);
   border-radius: var(--radius-md);
   line-height: 1.5;
   background: rgba(251, 254, 255, 0.82);
   border: 1px solid var(--dash-sage-line);
   box-shadow: 0 8px 20px rgba(21, 45, 85, 0.05);
+}
+
+.page.history-page .history-page__item-actions {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+}
+
+.page.history-page .history-page__delete-btn {
+  border: 1px solid rgba(138, 99, 146, 0.35);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.65rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--dash-plum);
+  background: rgba(138, 99, 146, 0.1);
+  cursor: pointer;
+}
+
+.page.history-page .history-page__delete-btn:hover:not(:disabled) {
+  background: rgba(138, 99, 146, 0.18);
+}
+
+.page.history-page .history-page__delete-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .page.history-page .history-page__item:last-child {

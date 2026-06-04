@@ -150,6 +150,41 @@
   min-height: 0;
 }
 
+.write-doc-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+}
+
+.write-doc-row .write-doc-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.write-doc-delete {
+  flex-shrink: 0;
+  align-self: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--write-border);
+  border-radius: 8px;
+  background: rgba(138, 99, 146, 0.12);
+  color: var(--write-accent-strong);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.write-doc-delete:hover:not(:disabled) {
+  background: rgba(138, 99, 146, 0.22);
+}
+
+.write-doc-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .write-doc-item {
   width: 100%;
   text-align: left;

@@ -113,3 +113,30 @@ def update_document(doc_id: str):
         return jsonify(next_doc), 200
     except Exception:
         return jsonify(ok=False, error="internal_error"), 500
+
+
+def _delete_feedback_for_doc(doc_id: str) -> None:
+    """Remove feedback-history rows tied to a document (best-effort)."""
+    from routes.feedback_history import COLLECTION as FEEDBACK_COLLECTION
+
+    db = get_db()
+    query = (
+        db.collection(FEEDBACK_COLLECTION)
+        .where("userId", "==", g.user_id)
+        .where("docId", "==", doc_id)
+    )
+    for snap in query.stream():
+        snap.reference.delete()
+
+
+@bp.delete("/documents/<doc_id>")
+@require_auth
+def delete_document(doc_id: str):
+    try:
+        if not _owned_doc(doc_id):
+            return jsonify(ok=False, error="not_found"), 404
+        _delete_feedback_for_doc(doc_id)
+        _doc_ref(doc_id).delete()
+        return jsonify(ok=True), 200
+    except Exception:
+        return jsonify(ok=False, error="internal_error"), 500

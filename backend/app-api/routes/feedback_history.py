@@ -25,6 +25,16 @@ def _trim_text(value: object, limit: int = MAX_TEXT_CHARS) -> str:
     return str(value or "").strip()[:limit]
 
 
+def _owned_record(record_id: str) -> dict | None:
+    snap = get_db().collection(COLLECTION).document(record_id).get()
+    if not snap.exists:
+        return None
+    data = snap.to_dict() or {}
+    if data.get("userId") != g.user_id:
+        return None
+    return data
+
+
 def _latest_rows(items: list[dict]) -> list[dict]:
     by_card: dict[str, dict] = {}
     for row in items:
@@ -120,6 +130,21 @@ def feedback_history_list():
         items = _latest_rows(items)
         items.sort(key=lambda row: str(row.get("updatedAt") or row.get("createdAt") or ""), reverse=True)
         return jsonify(items=items), 200
+    except Exception:
+        return jsonify(ok=False, error="internal_error"), 500
+
+
+@bp.delete("/feedback-history/<record_id>")
+@require_auth
+def feedback_history_delete(record_id: str):
+    record_id = _trim_text(record_id, 400)
+    if not record_id:
+        return jsonify(ok=False, error="missing_record_id"), 400
+    try:
+        if not _owned_record(record_id):
+            return jsonify(ok=False, error="not_found"), 404
+        get_db().collection(COLLECTION).document(record_id).delete()
+        return jsonify(ok=True), 200
     except Exception:
         return jsonify(ok=False, error="internal_error"), 500
 

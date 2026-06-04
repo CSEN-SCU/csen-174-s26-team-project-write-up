@@ -203,6 +203,12 @@ export const api = {
         headers: { "Content-Type": "application/json", ...extraHeaders },
         body: JSON.stringify({ title, content }),
       }),
+
+    delete: (id, { headers: extraHeaders = {} } = {}) =>
+      apiFetch(`/api/documents/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: extraHeaders,
+      }),
   },
 
   saveFeedback: (record, { headers: extraHeaders = {} } = {}) =>
@@ -210,6 +216,12 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json", ...extraHeaders },
       body: JSON.stringify(record),
+    }),
+
+  deleteFeedback: (recordId, { headers: extraHeaders = {} } = {}) =>
+    apiFetch(`/api/feedback-history/${encodeURIComponent(recordId)}`, {
+      method: "DELETE",
+      headers: extraHeaders,
     }),
 
   profileSnapshot: ({ headers: extraHeaders = {} } = {}) =>

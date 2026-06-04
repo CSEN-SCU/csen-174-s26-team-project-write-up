@@ -248,6 +248,13 @@ export default function Write() {
   const [content, setContent] = useState("");
   const [topError, setTopError] = useState(null);
   const [listLoading, setListLoading] = useState(false);
+<<<<<<< Updated upstream
+=======
+  const [deletingDocId, setDeletingDocId] = useState(null);
+  const [showIntro, setShowIntro] = useState(
+    () => localStorage.getItem(INTRO_DISMISSED_KEY) !== "1",
+  );
+>>>>>>> Stashed changes
   const lastSyncedCoachAtRef = useRef(null);
   const [decisionByCardId, setDecisionByCardId] = useState({});
   const [savingDecisionByCardId, setSavingDecisionByCardId] = useState({});
@@ -432,6 +439,49 @@ export default function Write() {
     [canUseBackend, bumpCoachGeneration, markSaved, resetCoachState],
   );
 
+  const deleteDocument = useCallback(
+    async (id, event) => {
+      event?.stopPropagation?.();
+      if (!canUseBackend || deletingDocId) return;
+      const doc = documents.find((d) => d.id === id);
+      const titleLabel = doc?.title?.trim() || "Untitled";
+      if (!window.confirm(`Delete "${titleLabel}"? This cannot be undone.`)) return;
+
+      setDeletingDocId(id);
+      setTopError(null);
+      try {
+        await api.documents.delete(id);
+        try {
+          localStorage.removeItem(`writeup-decisions-${id}`);
+        } catch {
+          /* non-fatal */
+        }
+        if (currentId === id) {
+          setCurrentId(null);
+          setTitle("");
+          setContent("");
+          resetCoachState("");
+          bumpCoachGeneration();
+        }
+        await loadList();
+      } catch (err) {
+        const code = err instanceof ApiError ? err.code : "unknown_error";
+        setTopError(`Could not delete document (${code}).`);
+      } finally {
+        setDeletingDocId(null);
+      }
+    },
+    [
+      canUseBackend,
+      deletingDocId,
+      documents,
+      currentId,
+      loadList,
+      resetCoachState,
+      bumpCoachGeneration,
+    ],
+  );
+
   const createDocument = useCallback(async () => {
     if (!canUseBackend) return;
     setTopError(null);
@@ -526,7 +576,7 @@ export default function Write() {
             </button>
             <ul className="write-doc-list" aria-label="Documents">
               {documents.map((d) => (
-                <li key={d.id}>
+                <li key={d.id} className="write-doc-row">
                   <button
                     type="button"
                     className={`write-doc-item${d.id === currentId ? " active" : ""}`}
@@ -536,6 +586,16 @@ export default function Write() {
                     <p className="write-doc-meta">
                       {d.updatedAt ? new Date(d.updatedAt).toLocaleString() : ""}
                     </p>
+                  </button>
+                  <button
+                    type="button"
+                    className="write-doc-delete"
+                    onClick={(e) => void deleteDocument(d.id, e)}
+                    disabled={deletingDocId === d.id}
+                    aria-label={`Delete ${d.title || "Untitled"}`}
+                    title="Delete document"
+                  >
+                    {deletingDocId === d.id ? "…" : "×"}
                   </button>
                 </li>
               ))}
