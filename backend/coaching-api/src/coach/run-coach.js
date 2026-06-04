@@ -15,6 +15,10 @@ import { filterToCoachingOnly, isCoachingCard } from "./issue-categories.js";
 import { mergeDeterministicAndCoaching } from "./merge-suggestions.js";
 import { coachLogSummary } from "./coach-log.js";
 import { coachWithChatCompletions, resolveCoachLlmAttempts } from "../llm/index.js";
+import {
+  applyFeedbackPreferences,
+  feedbackPreferenceNotes,
+} from "./feedback-preferences.js";
 
 const RAG_TOP_K = 8;
 /** Separate budgets so mechanics are not crowded out by coaching cards. */
@@ -80,6 +84,7 @@ export async function runCoach(body, meta = {}) {
     goals: rawGoals,
     audience: rawAudience,
     tonePreference: rawTonePreference,
+    feedbackPreferences: rawFeedbackPreferences,
   } = body || {};
 
   const text = typeof body?.text === "string" ? body.text : null;
@@ -104,6 +109,12 @@ export async function runCoach(body, meta = {}) {
         ? rawTonePreference
         : "neutral",
   };
+  const feedbackPreferences =
+    rawFeedbackPreferences &&
+    typeof rawFeedbackPreferences === "object" &&
+    !Array.isArray(rawFeedbackPreferences)
+      ? rawFeedbackPreferences
+      : null;
 
   const trimmed = text.trim().slice(0, 12000);
   if (!trimmed) {
@@ -135,7 +146,10 @@ export async function runCoach(body, meta = {}) {
     );
     retrievedSorted = mergeRetrievedHits(globalRetrieved, userRetrieved, RAG_TOP_K);
 
-    const profileNotes = store[userId]?.notes?.map((n) => n.summary) || [];
+    const profileNotes = [
+      ...(store[userId]?.notes?.map((n) => n.summary) || []),
+      ...feedbackPreferenceNotes(feedbackPreferences),
+    ];
     const styleHeur = heuristicSuggestions(trimmed, coachMode, { includePunctuation: false }).filter((c) =>
       isCoachingCard(c),
     );
@@ -153,6 +167,7 @@ export async function runCoach(body, meta = {}) {
           coachMode,
           focus,
           personalization,
+          feedbackPreferences,
         );
         if (Array.isArray(ai) && ai.length) {
           llmCards = filterToCoachingOnly(ai);
@@ -166,12 +181,13 @@ export async function runCoach(body, meta = {}) {
     coachingSuggestions = [...styleHeur, ...llmCards];
   }
 
-  const suggestions = mergeDeterministicAndCoaching(mechanicsSuggestions, coachingSuggestions, {
+  let suggestions = mergeDeterministicAndCoaching(mechanicsSuggestions, coachingSuggestions, {
     userText: trimmed,
     detMax: detCap,
     coachMax: coachMode === "paused" ? PAUSED_COACHING_MAX : 0,
     totalMax: coachMode === "paused" ? PAUSED_TOTAL_MAX : TYPING_TOTAL_MAX,
   });
+  suggestions = applyFeedbackPreferences(suggestions, feedbackPreferences);
 
   coachLogSummary({
     requestId,

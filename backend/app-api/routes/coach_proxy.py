@@ -13,6 +13,7 @@ from urllib.request import Request, urlopen
 from flask import Blueprint, g, jsonify, request
 
 from auth import require_auth
+from routes.feedback_history import build_feedback_preferences
 
 log = logging.getLogger(__name__)
 
@@ -82,6 +83,7 @@ def _force_uid_payload() -> dict[str, Any]:
         body = {}
     out = dict(body)
     out["userId"] = g.user_id
+    out["feedbackPreferences"] = build_feedback_preferences(g.user_id)
     return out
 
 

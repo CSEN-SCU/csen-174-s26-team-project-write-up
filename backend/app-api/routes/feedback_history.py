@@ -45,6 +45,58 @@ def _latest_rows(items: list[dict]) -> list[dict]:
     return list(by_card.values())
 
 
+def _compact_preference_row(row: dict) -> dict:
+    return {
+        "category": _trim_text(row.get("category"), 120),
+        "issue": _trim_text(row.get("issue"), 300),
+        "why": _trim_text(row.get("why"), 300),
+        "decision": _trim_text(row.get("decision"), 24).lower(),
+    }
+
+
+def build_feedback_preferences(user_id: str, *, limit: int = 40) -> dict:
+    """Summarize accept/decline history for coaching personalization."""
+    empty = {"accepted": [], "declined": [], "categoryScores": {}}
+    uid = _trim_text(user_id, 200)
+    if not uid:
+        return empty
+    try:
+        items: list[dict] = []
+        for snap in get_db().collection(COLLECTION).where("userId", "==", uid).stream():
+            data = snap.to_dict() or {}
+            items.append(data)
+        latest = _latest_rows(items)
+        latest.sort(
+            key=lambda row: str(row.get("updatedAt") or row.get("createdAt") or ""),
+            reverse=True,
+        )
+
+        accepted: list[dict] = []
+        declined: list[dict] = []
+        category_scores: dict[str, dict[str, int]] = {}
+
+        for row in latest:
+            decision = _trim_text(row.get("decision"), 24).lower()
+            if decision not in VALID_DECISIONS:
+                continue
+            category = _trim_text(row.get("category"), 120).lower() or "coaching"
+            bucket = category_scores.setdefault(category, {"accepted": 0, "declined": 0})
+            bucket[decision] += 1
+            compact = _compact_preference_row({**row, "decision": decision})
+            if decision == "accepted":
+                accepted.append(compact)
+            else:
+                declined.append(compact)
+
+        return {
+            "accepted": accepted[:limit],
+            "declined": declined[:limit],
+            "categoryScores": category_scores,
+        }
+    except Exception:
+        return empty
+
+
 @bp.post("/feedback-history")
 @require_auth
 def feedback_history_add():

@@ -31,6 +31,7 @@ Use types: coherence, clarity, style (or voice mapped to style), pattern for org
  * @param {"typing"|"paused"} coachMode
  * @param {string[]} [focus]
  * @param {{ goals?: string, audience?: string, tonePreference?: "formal"|"neutral"|"casual" }} [personalization]
+ * @param {{ accepted?: object[], declined?: object[], categoryScores?: object } | null} [feedbackPreferences]
  */
 export function coachMessages(
   text,
@@ -40,6 +41,7 @@ export function coachMessages(
   coachMode = "paused",
   focus = [],
   personalization = {},
+  feedbackPreferences = null,
 ) {
   const ctx = retrieved.map((r) => `- (${r.chunk.id}) ${r.chunk.text}`).join("\n");
   const profile =
@@ -87,6 +89,8 @@ How to give feedback:
 - Use the CONTEXT snippets as teaching references, not as rules to copy verbatim.
 - Use PROFILE data to preserve the writer's voice while choosing the smallest high-impact edits.
 - If audience/goals/tone preference are provided, align advice to them while still preserving authentic voice.
+- When FEEDBACK HISTORY notes list items the user **declined**, do not repeat the same issue or very similar wording — they chose to leave that text as written.
+- When FEEDBACK HISTORY notes list items the user **accepted**, similar coaching in that vein is welcome when it genuinely helps.
 
 Output strictly as JSON: {"suggestions":[{"type":"pattern|coherence|clarity|grammar|punctuation|voice","title":"","body":"","micro_edit":null|string}]}`;
 
@@ -94,11 +98,26 @@ Output strictly as JSON: {"suggestions":[{"type":"pattern|coherence|clarity|gram
     coachMode === "typing" ? `${system}${DRAFTING_MODE_APPEND}` : `${system}${FULL_REVIEW_MODE_APPEND}`;
 
   const personalizationBlock = [audienceLine, goalsLine, toneLine].filter(Boolean).join("\n");
+  const feedbackHistoryBlock = (() => {
+    const declined = (feedbackPreferences?.declined || [])
+      .map((row) => String(row?.issue || "").trim())
+      .filter(Boolean)
+      .slice(0, 6);
+    const accepted = (feedbackPreferences?.accepted || [])
+      .map((row) => String(row?.issue || "").trim())
+      .filter(Boolean)
+      .slice(0, 6);
+    if (!declined.length && !accepted.length) return "";
+    const lines = ["FEEDBACK HISTORY (respect user decisions across past drafts):"];
+    for (const issue of declined) lines.push(`- Declined (avoid): ${issue.slice(0, 160)}`);
+    for (const issue of accepted) lines.push(`- Accepted (similar OK): ${issue.slice(0, 160)}`);
+    return `${lines.join("\n")}\n\n`;
+  })();
   const scopeLine =
     coachMode === "paused"
       ? "Read and respond to the **entire** USER TEXT from start to finish—including the last sentences and new paragraphs—not only the opening lines. Ignore keyboard-mash fragments unless the writer clearly intended them as words.\n\n"
       : "";
-  const user = `${scopeLine}USER TEXT:\n${text}\n\nCONTEXT:\n${ctx}\n\n${focusLine ? `${focusLine}\n\n` : ""}${personalizationBlock ? `PERSONALIZATION:\n${personalizationBlock}\n\n` : ""}${profile}\n\n${profileLine}`;
+  const user = `${scopeLine}USER TEXT:\n${text}\n\nCONTEXT:\n${ctx}\n\n${focusLine ? `${focusLine}\n\n` : ""}${personalizationBlock ? `PERSONALIZATION:\n${personalizationBlock}\n\n` : ""}${feedbackHistoryBlock}${profile}\n\n${profileLine}`;
   return { system: systemFinal, user };
 }
 
@@ -145,6 +164,7 @@ export function resolveCoachLlmAttempts() {
  * @param {"typing"|"paused"} coachMode
  * @param {string[]} [focus]
  * @param {{ goals?: string, audience?: string, tonePreference?: "formal"|"neutral"|"casual" }} [personalization]
+ * @param {{ accepted?: object[], declined?: object[], categoryScores?: object } | null} [feedbackPreferences]
  */
 export async function coachWithChatCompletions(
   text,
@@ -155,6 +175,7 @@ export async function coachWithChatCompletions(
   coachMode = "paused",
   focus = [],
   personalization = {},
+  feedbackPreferences = null,
 ) {
   const { system, user } = coachMessages(
     text,
@@ -164,6 +185,7 @@ export async function coachWithChatCompletions(
     coachMode,
     focus,
     personalization,
+    feedbackPreferences,
   );
   const temperature = coachMode === "typing" ? 0.22 : 0.35;
 
