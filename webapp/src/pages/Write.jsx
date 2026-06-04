@@ -248,13 +248,7 @@ export default function Write() {
   const [content, setContent] = useState("");
   const [topError, setTopError] = useState(null);
   const [listLoading, setListLoading] = useState(false);
-<<<<<<< Updated upstream
-=======
   const [deletingDocId, setDeletingDocId] = useState(null);
-  const [showIntro, setShowIntro] = useState(
-    () => localStorage.getItem(INTRO_DISMISSED_KEY) !== "1",
-  );
->>>>>>> Stashed changes
   const lastSyncedCoachAtRef = useRef(null);
   const [decisionByCardId, setDecisionByCardId] = useState({});
   const [savingDecisionByCardId, setSavingDecisionByCardId] = useState({});
