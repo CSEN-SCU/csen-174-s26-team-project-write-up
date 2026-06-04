@@ -248,7 +248,6 @@
   color: transparent;
   white-space: pre-wrap;
   overflow-wrap: break-word;
-  word-break: break-word;
   overflow: hidden;
   pointer-events: none;
   border-radius: var(--write-radius);
@@ -280,6 +279,13 @@
   flex: 1;
   width: 100%;
   border: none;
+  /* Zero out the browser-default textarea padding (~2px) so the textarea's
+     content area matches the highlight layer's content area exactly. Without
+     this the two layers wrap at slightly different x positions; that 2-4px
+     drift accumulates over many lines and visibly pushes the orange <mark>
+     off the text it underlines. The .write-editor-surface around us already
+     provides the visual 1rem 1.1rem padding for both layers. */
+  padding: 0;
   resize: none;
   outline: none;
   background: transparent;

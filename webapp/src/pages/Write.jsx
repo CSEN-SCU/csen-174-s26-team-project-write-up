@@ -590,6 +590,12 @@ export default function Write() {
                           {content.substring(displayedHighlight.start, displayedHighlight.end)}
                         </mark>
                         {content.substring(displayedHighlight.end)}
+                        {/* Trailing zero-width space gives the mirror layer the same
+                            phantom bottom line a textarea reserves for the cursor.
+                            Without it the layer's scrollHeight is one line shorter
+                            than the textarea's, so marks near the end of the document
+                            land one line higher than the underlying text. */}
+                        {"\u200B"}
                       </>
                     ) : null}
                   </div>
