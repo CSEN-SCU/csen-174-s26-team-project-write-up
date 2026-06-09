@@ -1,10 +1,8 @@
 # Write Up — Final Technical Report
 
-**Team Write Up** · Miranda, Cole, Ishika, Catherine, Chris · Spring 2026  
-*(Replace first names with full legal names on the Camino PDF.)*
+**Team Write Up** · Miranda, Cole, Ishika, Catherine, Chris · Spring 2026
 
 > **Course:** CSEN 174 — Software Engineering in the Age of AI · Santa Clara University  
-> **Submission:** Export this file to PDF (4–6 pages, 11 pt body, 1″ margins) for Camino. The graded artifact is the PDF at the deadline; this markdown remains the living portfolio copy in the repo.
 
 ---
 
@@ -13,8 +11,8 @@
 | Item | Location |
 |------|----------|
 | Live app | [https://csen-174-s26-team-project-write-up.vercel.app/](https://csen-174-s26-team-project-write-up.vercel.app/) |
-| Demo video | *[Add URL in README before PDF export]* |
-| Demo-night / code-freeze tag | *[Add `git tag` or commit SHA]* |
+| Demo video | https://youtu.be/N43Mmq7o4cc |
+| Demo-night tag | https://github.com/CSEN-SCU/csen-174-s26-team-project-write-up/releases/tag/demo-night-2026 |
 | Sprint board | [GitHub Project #18](https://github.com/orgs/CSEN-SCU/projects/18) |
 | Architecture (W4 baseline) | [`docs/architecture.md`](docs/architecture.md) |
 | Architecture retrospective (W8) | [`docs/architecture-retrospective.md`](docs/architecture-retrospective.md) |
@@ -49,15 +47,13 @@ The Lydia storyboard ([`docs/storyboard-lydia.md`](docs/storyboard-lydia.md)) fr
 
 ## 2. Architecture evolution
 
-We use **C4 context + container** diagrams (Mermaid in docs; PNG exports for the report PDF).
-
 ### W4 — Initial intent (extension + split APIs)
 
 Planned: Chrome MV3 extension reading Google Docs, **App API** (Flask/Firebase) for auth/history, **Coaching API** (Node/RAG/LLM), markdown knowledge base, Google OAuth.
 
 ![W4-style container diagram — see repo history](docs/architecture.md)
 
-**Reference:** [`docs/architecture.md`](docs/architecture.md) (Option B container diagram). Early W4 submission also linked from [`docs/architecture-retrospective.md`](docs/architecture-retrospective.md).
+**Reference:** [`docs/architecture.md`](docs/architecture.md)
 
 ### W8 — Revised architecture (deployability + security)
 
@@ -65,11 +61,14 @@ Revisions documented in [`docs/architecture-retrospective.md`](docs/architecture
 
 - **Serverless / Vercel** alignment for the React webapp.
 - **Authenticated proxy:** browser → App API → Coaching API (internal secret), not public coaching port.
-- **Extension deprioritized**; webapp becomes primary writer surface.
 
 ![W8 current context](docs/images/architecture-context-current.png)
 
 ![W8 current containers](docs/images/architecture-container-current.png)
+
+### Final Architecture (deployability)
+
+- **Extension deprioritized**; webapp becomes primary writer surface.
 
 ### Current — Code freeze (Spring 2026)
 
@@ -93,7 +92,6 @@ Writer → Webapp (React/Vite) → App API (Flask) → Coaching API (Express)
 1. [`backend/app-api/routes/coach_proxy.py`](backend/app-api/routes/coach_proxy.py) — forces `userId` from Firebase token.  
 2. [`backend/coaching-api/src/coach/run-coach.js`](backend/coaching-api/src/coach/run-coach.js) — orchestration: `finalizeMechanicsSuggestions` then RAG/LLM coaching merge.  
 3. [`backend/coaching-api/src/rag/index.js`](backend/coaching-api/src/rag/index.js) — `retrieveForCoachingGuidance` (no spelling-augment bias).  
-4. *[Add PR #67 or your merge PR for CI if cited in architecture section]* — [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ---
 
@@ -124,8 +122,8 @@ Writer → Webapp (React/Vite) → App API (Flask) → Coaching API (Express)
 | Asset | Link |
 |-------|------|
 | Live URL | https://csen-174-s26-team-project-write-up.vercel.app/ |
-| Demo video | *[README — add before Camino]* |
-| Code-freeze commit | *[Add tag/SHA]* |
+| Demo video | https://youtu.be/N43Mmq7o4cc |
+| Demo Night commit | https://github.com/CSEN-SCU/csen-174-s26-team-project-write-up/releases/tag/demo-night-2026 |
 
 ### Feature → entry points
 
@@ -209,7 +207,7 @@ Writer → Webapp (React/Vite) → App API (Flask) → Coaching API (Express)
 
 3. **AI-generated tests over-scoped.** Cursor produced DB integration tests when asked for a small unit check ([`docs/sprint-1-retro.md`](docs/sprint-1-retro.md)). *Fix: explicit “no new files / mock only” in prompts.*
 
-### AI tools (one paragraph)
+### AI tools
 
 Cursor accelerated MVPs (extension sidepanel, Firebase wiring, coach guardrails) and helped debug git rebase conflicts. We overrode AI when it flattened architecture into a single API, when it suggested deleting prototype folders before code freeze, and when it proposed logging full draft text in production—we replaced that with `COACH_LOG` JSON summaries ([`coach-log.js`](backend/coaching-api/src/coach/coach-log.js), [`backend/coaching-api/.env.example`](backend/coaching-api/.env.example)). Jolli was useful for docs after extra prompting but did not replace repo-first documentation ([`docs/sprint-1-retro.md`](docs/sprint-1-retro.md)).
 
@@ -232,18 +230,5 @@ Cursor accelerated MVPs (extension sidepanel, Firebase wiring, coach guardrails)
 1. **Deploy to production by Sprint 2**, not demo week—our biggest rework came from “works on localhost” ([`docs/sprint-2-retro.md`](docs/sprint-2-retro.md)).  
 2. **Walk the Kanban before writing the final report**—each card is a process receipt ([Project #18](https://github.com/orgs/CSEN-SCU/projects/18)).  
 3. **When AI and heuristics coexist, log stage counts without user text**—we burned days on a silent gate ([`coach-log.js`](backend/coaching-api/src/coach/coach-log.js)).
-
----
-
-## Appendix — Export checklist (Camino)
-
-- [ ] Replace identifier line with **full names**
-- [ ] Embed or paste **architecture PNGs** from [`docs/images/`](docs/images/) (counts toward page limit)
-- [ ] Add **demo video URL** and **code-freeze SHA** in §3
-- [ ] Add **screenshot/GIF** to README
-- [ ] Export PDF (4–6 pages) and upload to **Camino**
-- [ ] Confirm grader can reach public repo + README links to this file
-
----
 
 *CSEN 174 · Spring 2026 · Santa Clara University · Course materials CC BY 4.0*

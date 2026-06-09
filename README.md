@@ -1,13 +1,12 @@
 ﻿# Write Up
-Demo Video: https://youtu.be/N43Mmq7o4cc 
 
 **Learning-first writing coach** — paste a draft, pause for coaching, and get mechanics plus higher-level feedback without losing your voice.
 
 | | |
 |---|---|
 | **Live app** | https://csen-174-s26-team-project-write-up.vercel.app/ |
-| **Demo video** | *[Add link]* |
-| **Technical report** | [`TECHNICAL_REPORT.md`](TECHNICAL_REPORT.md) (export PDF for Camino) |
+| **Demo video** | https://youtu.be/N43Mmq7o4cc |
+| **Technical report** | [`TECHNICAL_REPORT.md`](TECHNICAL_REPORT.md) |
 | **Architecture** | [`docs/architecture.md`](docs/architecture.md) |
 
 ![Write Up — add screenshot or GIF here](webapp/logo.png)
